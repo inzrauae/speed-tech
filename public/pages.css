@@ -1,0 +1,121 @@
+/* ==========================================================================
+   SpeedTech — hero animation, about & contact pages, mobile quick actions.
+   ========================================================================== */
+
+/* Hero animation: runs only with JS and when the visitor allows motion */
+@keyframes heroUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+@keyframes heroZoom{from{transform:scale(1.12)}to{transform:scale(1)}}
+@keyframes heroFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes dotPulse{0%{box-shadow:0 0 0 0 #ed171f80}80%,100%{box-shadow:0 0 0 9px #ed171f00}}
+/* Stagger by position, so it applies from the very first frame */
+.hero-anim:nth-child(2){--d:110ms}.hero-anim:nth-child(3){--d:220ms}.hero-anim:nth-child(4){--d:330ms}.hero-anim:nth-child(5){--d:440ms}.hero-anim:nth-child(6){--d:550ms}
+.repair-promises.hero-anim,.service-facts.hero-anim{--d:450ms}
+@media(prefers-reduced-motion:no-preference){
+  .js .hero-anim{opacity:0;animation:heroUp .75s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--d,0ms) + 120ms)}
+  .hero-art{animation:heroZoom 2.4s cubic-bezier(.2,.7,.2,1) both}
+  .hero-float{animation:heroUp .8s .7s cubic-bezier(.2,.7,.2,1) both,heroFloat 5s 1.5s ease-in-out infinite}
+  .hero .status-dot,.repair-hero .status-dot,.page-hero .status-dot{animation:dotPulse 2s ease-out infinite}
+  .buttons .button.red .icon:last-child{transition:transform .2s}
+  .buttons .button.red:hover .icon:last-child{transform:translateX(3px)}
+}
+
+/* Page hero (about, contact) */
+.page-hero{background:linear-gradient(90deg,#101014 0%,#101014ee 50%,#101014a8 100%),url('assets/hero-repair.png') 80% 60% / cover;color:#fff}
+.page-hero-inner{padding-block:30px 48px}
+.page-hero .eyebrow{color:#c9c6ca;font-size:10px}
+.page-hero h1{font-size:clamp(38px,4.2vw,58px)}
+.page-hero h1 em{color:#ff333b}
+.page-hero-inner>p{color:#d5d3d7;font-size:14px;line-height:1.7;max-width:600px}
+
+/* Contact */
+.contact-methods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:-26px;position:relative;z-index:1}
+.method-card{display:flex;flex-direction:column;gap:6px;padding:20px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;box-shadow:0 8px 28px #171b2514;transition:border-color .2s,transform .2s}
+.method-card:hover{border-color:var(--red);transform:translateY(-3px)}
+.method-card .service-icon{margin-bottom:6px}
+.method-card b{font-size:15px}
+.method-card>span:last-child{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.method-whatsapp .service-icon{background:#e9f8ee;color:#1ca944}
+.contact-main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;align-items:start;padding-block:30px 44px}
+.contact-form h2,.visit-card h2{font-size:26px;margin-bottom:6px}
+.help-text{font-size:13px;color:var(--muted);line-height:1.6}
+.contact-form .form-grid label{font-size:12px;font-weight:500}
+.contact-form textarea{resize:vertical}
+.contact-form .button{margin-top:16px}
+.contact-side{display:grid;gap:16px}
+.map-card{border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);background:var(--surface);aspect-ratio:16/10}
+.map-card iframe{display:block;width:100%;height:100%;border:0}
+.visit-card>p{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px}
+.visit-card .google-mark{font-size:18px}
+.visit-card .detail-note{margin-top:14px}
+
+/* About */
+.about-story{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:44px;align-items:center;padding-block:44px}
+.about-story h2{margin:6px 0 14px}
+.about-story p{font-size:14px;color:#4a4c55;line-height:1.75;margin-bottom:12px}
+.about-story img{width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:var(--radius)}
+.about-offer{padding-bottom:44px}
+.about-offer h2{margin:6px 0 20px}
+.offer-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.offer-card{display:flex;flex-direction:column;gap:10px;padding:22px;border:1px solid var(--line);border-radius:var(--radius);transition:border-color .2s,box-shadow .2s}
+.offer-card:hover{border-color:#ed171f55;box-shadow:0 6px 24px #171b2512}
+.offer-card h3{font-size:22px}
+.offer-card p{font-size:12px;color:var(--muted);line-height:1.6}
+.about-values{background:var(--dark);color:#fff;padding:44px 0;margin-bottom:40px}
+.about-values .eyebrow{color:#eb9297}
+.about-values h2{margin:6px 0 24px}
+.values-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+.values-grid .icon{width:34px;height:34px;color:#ff5b62;margin-bottom:12px}
+.values-grid h3{font-size:21px;margin-bottom:6px}
+.values-grid p{font-size:12px;color:#b9b9c2;line-height:1.6}
+
+/* Mobile quick-action bar (hidden on larger screens) */
+.mobile-actions{display:none}
+
+@media(max-width:1000px){
+  .contact-methods{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .contact-main,.about-story{grid-template-columns:1fr}
+  .offer-grid,.values-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:700px){
+  .mobile-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:20;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#fffffff2;backdrop-filter:blur(10px);border-top:1px solid var(--line);box-shadow:0 -6px 20px #0000001a}
+  .mobile-actions a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;border-radius:8px;font-weight:700;font-size:14px;color:#fff}
+  .mobile-actions .icon{width:20px;height:20px}
+  .ma-call{background:var(--dark)}
+  .ma-whatsapp{background:#1ca944}
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  #toast{bottom:calc(76px + env(safe-area-inset-bottom))}
+
+  /* 16px form text stops iOS zooming in when a field is tapped */
+  input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px!important}
+
+  /* Comfortable tap targets and spacing */
+  .footer-links>a{padding-block:4px}
+  .breadcrumbs{font-size:12px}
+  .page-title{font-size:30px}
+  .page-hero-inner{padding-block:22px 42px}
+  .page-hero h1{font-size:36px}
+  .page-hero-inner>p{font-size:13px}
+  .contact-methods{gap:10px;margin-top:-22px}
+  .method-card{padding:16px}
+  .contact-main{padding-block:24px 34px}
+  .offer-grid,.values-grid{grid-template-columns:1fr}
+  .about-story{padding-block:30px;gap:24px}
+  .about-story img{order:-1}
+  dialog{max-height:calc(100dvh - 24px);width:calc(100% - 20px);padding:26px 18px}
+  .flash{font-size:12px}
+}
+
+/* Let the part-number input shrink on narrow screens */
+.pn-field input{width:0}
+.pn-search>*{min-width:0}
+
+/* Floating WhatsApp button: pinned bottom-right above 700px */
+.wa-float{position:fixed;right:22px;bottom:22px;z-index:20;display:flex;align-items:center;gap:0;height:58px;min-width:58px;padding:0 17px;border-radius:30px;background:#1ca944;color:#fff;font-weight:700;font-size:14px;box-shadow:0 8px 24px #1ca94466,0 2px 6px #0003;transition:background .2s,gap .25s,padding .25s}
+.wa-float .icon{width:26px;height:26px;stroke-width:1.7}
+.wa-float span{max-width:0;overflow:hidden;white-space:nowrap;transition:max-width .3s}
+.wa-float:hover,.wa-float:focus-visible{background:#168837;gap:9px;padding-right:22px}
+.wa-float:hover span,.wa-float:focus-visible span{max-width:140px}
+@media(prefers-reduced-motion:no-preference){.wa-float::before{content:"";position:absolute;inset:0;border-radius:inherit;background:#1ca944;z-index:-1;animation:waPing 2.6s ease-out infinite}}
+@keyframes waPing{0%{transform:scale(1);opacity:.55}80%,100%{transform:scale(1.45);opacity:0}}
+@media(max-width:700px){.wa-float{display:none}}
