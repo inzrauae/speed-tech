@@ -1,0 +1,2 @@
+.preview-banner{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:4px 10px;padding:7px 16px;background:#fff4e0;color:#7a4300;font-size:12px;line-height:1.4;text-align:center;border-bottom:1px solid #f3d9a8}
+.preview-banner b{text-transform:uppercase;letter-spacing:1px;font-size:11px}
