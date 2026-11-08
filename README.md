@@ -75,6 +75,18 @@ If `SHOP_NOTIFY_EMAIL` is set, the shop gets an e-mail for each new order and en
    Run `DemoProductSeeder` only if you want the sample products. **Its prices, stock and part numbers are illustrative.**
 6. Make `storage/`, `bootstrap/cache/` and `public/uploads/` writable.
 
+## Updating the live site from GitHub
+
+The live site at https://com.inzra.com is a Git clone of this repository in `~/speedtech` on the server. To publish changes:
+
+1. Commit and push to `main` here.
+2. On the server, in cPanel → Terminal:
+   ```bash
+   cd ~/speedtech && bash deploy.sh
+   ```
+
+`deploy.sh` puts the site in maintenance mode, pulls `main`, installs PHP packages, runs database migrations, rebuilds the caches, and brings the site back up. The server's `.env` and the uploaded product images (`public/uploads`) are not in Git, so updates never overwrite them.
+
 ## Not included yet
 
 - Online card payments (for example PayHere). Checkout currently records pay-at-store, cash-on-delivery and bank-transfer orders.
