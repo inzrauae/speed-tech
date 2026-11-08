@@ -119,3 +119,8 @@
 @media(prefers-reduced-motion:no-preference){.wa-float::before{content:"";position:absolute;inset:0;border-radius:inherit;background:#1ca944;z-index:-1;animation:waPing 2.6s ease-out infinite}}
 @keyframes waPing{0%{transform:scale(1);opacity:.55}80%,100%{transform:scale(1.45);opacity:0}}
 @media(max-width:700px){.wa-float{display:none}}
+
+/* About: "since 2003" badge */
+.since-badge{display:inline-flex;align-items:center;gap:12px;margin-top:22px;padding:12px 18px;border:1px solid #ffffff26;border-radius:8px;background:#0f1014b3;backdrop-filter:blur(8px)}
+.since-badge b{font-family:"Barlow Condensed",Arial,sans-serif;font-size:40px;line-height:1;color:#ff333b}
+.since-badge span{font-size:12px;line-height:1.4;color:#d5d3d7;text-transform:uppercase;letter-spacing:.8px;font-weight:600}

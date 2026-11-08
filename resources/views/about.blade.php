@@ -1,24 +1,27 @@
 @extends('layouts.app', [
   'title' => 'About us',
-  'description' => 'SpeedTech IT Solutions is a local IT repair, upgrade and spare parts specialist in Kaduwela, Sri Lanka. Honest advice, the right part and careful repairs.',
+  'description' => 'Speedtech IT Solutions has been a trusted leader in IT repair and support since 2003. Screen repairs, data recovery, motherboard-level fixes, spare parts and accessories in Kaduwela, Sri Lanka.',
 ])
 
 @section('content')
+  @php($years = (int) date('Y') - 2003)
   <section class="page-hero">
     <div class="wrap page-hero-inner">
       <nav class="breadcrumbs light" aria-label="Breadcrumb"><a href="{{ route('home') }}">Home</a><span>/</span><b>About us</b></nav>
       <div class="eyebrow hero-anim"><span class="status-dot"></span>ABOUT SPEEDTECH</div>
-      <h1 class="hero-anim">Your local people.<br><em>Your tech, sorted.</em></h1>
-      <p class="hero-anim">SpeedTech IT Solutions is a computer repair, upgrade and spare parts specialist based in Kaduwela. We help homes, students and small businesses keep their technology working.</p>
+      <h1 class="hero-anim">Your one-stop<br><em>IT solutions provider.</em></h1>
+      <p class="hero-anim">A trusted leader in IT repair and support since 2003. Professional, reliable service for all your technology needs.</p>
+      <div class="since-badge hero-anim"><b>{{ $years }}+</b><span>years of trusted<br>IT repair &amp; support</span></div>
     </div>
   </section>
 
   <section class="wrap about-story">
     <div>
-      <div class="eyebrow brand-text">WHO WE ARE</div>
-      <h2>Good tech deserves a second chance.</h2>
-      <p>A broken screen, a tired battery or a slow laptop shouldn't mean buying a new computer. We started SpeedTech to give people in our neighbourhood a place they can trust for honest advice, quality parts and careful repairs.</p>
-      <p>We look at the real cause of a fault, explain your options in plain language, and give you a clear price before any work starts. If a repair isn't worth it, we'll tell you.</p>
+      <div class="eyebrow brand-text">WHO WE ARE · SINCE 2003</div>
+      <h2>Your One-Stop IT Solutions Provider!</h2>
+      <p>Speedtech IT Solutions has been a trusted leader in IT repair and support since 2003, offering professional and reliable services for all your technology needs.</p>
+      <p>As a comprehensive computer shop and service provider, we specialize in everything from simple screen repairs to complex data recovery and motherboard-level fixes. Our experienced technicians are dedicated to diagnosing the root cause of issues, providing effective and affordable solutions to keep your laptops, desktops, and other devices running smoothly.</p>
+      <p>We pride ourselves on delivering quality workmanship, honest advice, and exceptional customer service, making us your go-to partner for all things tech.</p>
       <div class="buttons">
         <a class="button red" href="{{ route('repairs') }}">Our repair services<svg class="icon"><use href="#icon-arrow"/></svg></a>
         <a class="button button-outline" href="{{ route('spare-parts') }}">Find a spare part</a>
