@@ -92,6 +92,7 @@ return [
     'address' => env('SHOP_ADDRESS', '300/2/1 Samagi Mawatha, Kaduwela 10640, Sri Lanka'),
     'maps_url' => env('SHOP_MAPS_URL', 'https://maps.app.goo.gl/vfGEvh1T6Yns4QHy7'),
     'reviews_url' => env('SHOP_REVIEWS_URL', 'https://share.google/zRSkab6cI6Dv31Oqn'),
+    'facebook_url' => env('SHOP_FACEBOOK_URL', 'https://www.facebook.com/Speedtechitsolution'),
     // Google Maps embed for the contact page (Maps > Share > Embed a map gives an exact URL).
     'maps_embed' => env('SHOP_MAPS_EMBED', 'https://maps.google.com/maps?q='.rawurlencode('SpeedTech IT Solutions, 300/2/1 Samagi Mawatha, Kaduwela').'&z=16&output=embed'),
 

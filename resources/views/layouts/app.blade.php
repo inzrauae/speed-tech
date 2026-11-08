@@ -22,7 +22,7 @@
     <a href="{{ $shop['maps_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-pin"/></svg>Kaduwela, Sri Lanka</a>
     <a href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg>{{ $shop['phone_display'] }}</a>
     <a class="top-email" href="mailto:{{ $shop['email'] }}"><svg class="icon"><use href="#icon-mail"/></svg>{{ $shop['email'] }}</a>
-  </div><span class="top-tagline">Your local people. Your tech, sorted.</span></div></div>
+  </div><div class="top-right"><span class="top-tagline">Your local people. Your tech, sorted.</span>@include('partials.social', ['class' => 'social-top'])</div></div></div>
 
   <header class="masthead"><div class="wrap header">
     <a class="brand" href="{{ route('home') }}" aria-label="{{ $shop['name'] }} home"><img class="logo" src="{{ asset('assets/logo.png') }}" width="681" height="284" alt="{{ $shop['name'] }}"></a>
@@ -72,7 +72,7 @@
     <div class="footer-brand"><a href="{{ route('home') }}" aria-label="SpeedTech home"><img src="{{ asset('assets/logo-light.png') }}" width="681" height="284" alt="{{ $shop['name'] }}"></a><p>Repair <span>•</span> Upgrade <span>•</span> Shop</p></div>
     <div class="footer-links"><h2>Quick links</h2><a href="{{ route('spare-parts') }}">Laptop spare parts</a><a href="{{ route('shop') }}">Computer accessories</a><a href="{{ route('repairs') }}">Repair services</a><a href="{{ route('about') }}">About us</a><a href="{{ route('contact') }}">Contact us</a><a href="{{ route('cart') }}">My cart</a></div>
     <div class="footer-links" id="contact"><h2>Contact us</h2><a href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg>{{ $shop['phone_display'] }}</a><a href="mailto:{{ $shop['email'] }}"><svg class="icon"><use href="#icon-mail"/></svg>{{ $shop['email'] }}</a><a href="{{ $shop['maps_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-pin"/></svg>{{ $shop['address'] }}</a><a href="{{ $shop['reviews_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-check"/></svg>Read our Google reviews</a></div>
-    <div class="footer-connect"><h2>Let's talk tech.</h2><p>Good advice is just a message away.</p><a class="button whatsapp-link" href="{{ whatsapp_url() }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-whatsapp"/></svg>Chat on WhatsApp<svg class="icon"><use href="#icon-arrow"/></svg></a></div>
+    <div class="footer-connect"><h2>Let's talk tech.</h2><p>Good advice is just a message away.</p>@include('partials.social', ['class' => 'social-footer'])<a class="button whatsapp-link" href="{{ whatsapp_url() }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-whatsapp"/></svg>Chat on WhatsApp<svg class="icon"><use href="#icon-arrow"/></svg></a></div>
   </div><div class="wrap footer-bottom"><span>© {{ date('Y') }} {{ $shop['name'] }}. All rights reserved.</span><span>Your tech. In good hands.</span></div></footer>
 
   {{-- Repair booking --}}

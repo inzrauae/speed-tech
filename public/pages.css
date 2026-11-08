@@ -124,3 +124,26 @@
 .since-badge{display:inline-flex;align-items:center;gap:12px;margin-top:22px;padding:12px 18px;border:1px solid #ffffff26;border-radius:8px;background:#0f1014b3;backdrop-filter:blur(8px)}
 .since-badge b{font-family:"Barlow Condensed",Arial,sans-serif;font-size:40px;line-height:1;color:#ff333b}
 .since-badge span{font-size:12px;line-height:1.4;color:#d5d3d7;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+
+/* Social media icons */
+.social{display:flex;align-items:center;gap:8px}
+.social a{display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:background .2s,color .2s,transform .2s}
+.social-icon{width:18px;height:18px;fill:currentColor;flex-shrink:0}
+.top-right{display:flex;align-items:center;gap:16px}
+.social-top a{width:24px;height:24px;border-radius:50%;background:#ffffff14;color:#fff}
+.social-top .social-icon{width:14px;height:14px}
+.social-top a:hover{background:#ffffff2e}
+.social-footer{margin:14px 0 2px}
+.social-footer a{width:38px;height:38px;border-radius:50%;background:#ffffff14;color:#fff}
+.social-footer a:hover{transform:translateY(-2px)}
+.social-footer .social-facebook:hover{background:#1877f2}
+.social-footer .social-google:hover{background:#fff}
+.social-brand{flex-wrap:wrap}
+.social-brand a{min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-weight:600;background:#fff}
+.social-brand .social-facebook{color:#1877f2}
+.social-brand a:hover{border-color:currentColor;transform:translateY(-2px)}
+.social-brand .social-google:hover{border-color:#4285f4}
+.follow-us{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.follow-us>span{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+@media(max-width:1000px){.top-right .top-tagline{display:none}}
+@media(max-width:700px){.top-right{display:none}}

@@ -63,8 +63,8 @@
         <p>{{ $shop['address'] }}</p>
         <div class="help-actions">
           <a class="button red" href="{{ $shop['maps_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-pin"/></svg>Get directions</a>
-          <a class="button button-outline" href="{{ $shop['reviews_url'] }}" target="_blank" rel="noopener"><span class="google-mark" aria-hidden="true">G</span>Google reviews</a>
         </div>
+        <div class="follow-us"><span>Follow us</span>@include('partials.social', ['class' => 'social-brand', 'labels' => true])</div>
         <p class="detail-note">Bringing a device in? Call ahead and we'll make sure the right technician is free.</p>
       </div>
     </div>

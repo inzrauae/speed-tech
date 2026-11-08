@@ -75,7 +75,8 @@ class StorefrontTest extends TestCase
     {
         $this->get('/about')->assertOk()->assertSee('Your One-Stop IT Solutions Provider!')->assertSee('since 2003')->assertSee(((int) date('Y') - 2003).'+')->assertSee('What you can expect from us');
         $this->get('/contact')->assertOk()->assertSee('Send us a message')->assertSee('output=embed', false)
-            ->assertSee('class="mobile-actions"', false)->assertSee('href="tel:', false);
+            ->assertSee('class="mobile-actions"', false)->assertSee('href="tel:', false)
+            ->assertSee('https://www.facebook.com/Speedtechitsolution', false)->assertSee('social-google', false);
     }
 
     public function test_contact_form_creates_general_enquiry(): void
