@@ -4,6 +4,9 @@
   <form class="filters" method="get">
     <input type="search" name="q" value="{{ request('q') }}" placeholder="Order number, name or phone…">
     <select name="status" data-autosubmit><option value="">All statuses</option>@foreach (\App\Models\Order::STATUSES as $key => $label)<option value="{{ $key }}" @selected(request('status') === $key)>{{ $label }}</option>@endforeach</select>
+    <select name="payment" data-autosubmit><option value="">Any payment status</option>@foreach (\App\Models\Order::PAYMENT_STATUSES as $key => $label)<option value="{{ $key }}" @selected(request('payment') === $key)>{{ $label }}</option>@endforeach</select>
+    <select name="method" data-autosubmit><option value="">Any payment method</option>@foreach (\App\Models\Order::PAYMENT_METHODS as $key => $label)<option value="{{ $key }}" @selected(request('method') === $key)>{{ $label }}</option>@endforeach</select>
+    <label class="check"><input type="checkbox" name="slip" value="1" @checked(request('slip')) data-autosubmit> Slip to check</label>
     <button class="btn" type="submit">Filter</button>
   </form>
 
@@ -15,7 +18,7 @@
           <td><a class="link" href="{{ route('admin.orders.show', $order) }}">{{ $order->number }}</a><small>{{ $order->created_at->format('d M Y, H:i') }}</small></td>
           <td>{{ $order->customer_name }}<small>{{ $order->phone }}</small></td>
           <td>{{ $order->fulfilment === 'pickup' ? 'Pickup' : 'Delivery' }}<small>{{ $order->city }}</small></td>
-          <td>{{ $order->paymentLabel() }}</td>
+          <td>{{ $order->paymentLabel() }}<small><span class="badge {{ $order->isPaid() ? 'completed' : ($order->payment_status === 'refunded' ? 'cancelled' : 'pending') }}">{{ $order->paymentStatusLabel() }}</span>@if ($order->payment_slip && ! $order->isPaid()) slip uploaded @endif</small></td>
           <td><span class="badge {{ $order->status }}">{{ $order->statusLabel() }}</span></td>
           <td class="num">{{ $order->items_count }}</td>
           <td class="num">{{ money($order->total) }}</td>

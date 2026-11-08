@@ -22,14 +22,28 @@ class Order extends Model
     ];
 
     public const PAYMENT_METHODS = [
-        'pay_at_store' => 'Pay at the store',
         'cod' => 'Cash on delivery',
         'bank_transfer' => 'Bank transfer',
+        'pay_at_store' => 'Pay at the store',
+    ];
+
+    /** Which delivery option each payment method works with. */
+    public const PAYMENT_FULFILMENT = [
+        'cod' => ['delivery'],
+        'bank_transfer' => ['delivery', 'pickup'],
+        'pay_at_store' => ['pickup'],
+    ];
+
+    public const PAYMENT_STATUSES = [
+        'unpaid' => 'Unpaid',
+        'paid' => 'Paid',
+        'refunded' => 'Refunded',
     ];
 
     protected $fillable = [
         'number', 'customer_name', 'phone', 'email', 'fulfilment', 'address', 'city',
-        'payment_method', 'status', 'subtotal', 'delivery_fee', 'total', 'notes', 'admin_notes',
+        'payment_method', 'payment_status', 'paid_at', 'payment_reference', 'payment_slip',
+        'status', 'subtotal', 'delivery_fee', 'total', 'notes', 'admin_notes',
     ];
 
     protected function casts(): array
@@ -38,6 +52,7 @@ class Order extends Model
             'subtotal' => 'decimal:2',
             'delivery_fee' => 'decimal:2',
             'total' => 'decimal:2',
+            'paid_at' => 'datetime',
         ];
     }
 
@@ -59,6 +74,37 @@ class Order extends Model
     public function paymentLabel(): string
     {
         return self::PAYMENT_METHODS[$this->payment_method] ?? $this->payment_method;
+    }
+
+    public function paymentStatusLabel(): string
+    {
+        return self::PAYMENT_STATUSES[$this->payment_status] ?? ucfirst((string) $this->payment_status);
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->payment_status === 'paid';
+    }
+
+    /** Payment methods switched on in Admin → Settings. */
+    public static function enabledPaymentMethods(): array
+    {
+        return array_values(array_filter(array_keys(self::PAYMENT_METHODS),
+            fn ($method) => (bool) Setting::read("payment_{$method}_enabled")));
+    }
+
+    /** Methods a customer can pick for this delivery option and order value. */
+    public static function allowedPaymentMethods(string $fulfilment, float $subtotal = 0): array
+    {
+        $codLimit = (float) Setting::read('cod_max_order');
+
+        return array_values(array_filter(self::enabledPaymentMethods(), function ($method) use ($fulfilment, $subtotal, $codLimit) {
+            if (! in_array($fulfilment, self::PAYMENT_FULFILMENT[$method], true)) {
+                return false;
+            }
+
+            return ! ($method === 'cod' && $codLimit > 0 && $subtotal > $codLimit);
+        }));
     }
 
     /** Statuses that still hold stock. */

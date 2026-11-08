@@ -87,10 +87,30 @@
           <div class="form-grid" style="grid-template-columns:1fr">
             <label class="field">Price (Rs.) <small>— leave empty for "Price on request"</small><input type="number" name="price" value="{{ old('price', $product->price) }}" min="0" step="0.01"></label>
             <label class="field">Compare-at price <small>(optional, shown struck through)</small><input type="number" name="compare_at_price" value="{{ old('compare_at_price', $product->compare_at_price) }}" min="0" step="0.01"></label>
-            <label class="field">Stock quantity<input type="number" name="stock_qty" value="{{ old('stock_qty', $product->stock_qty ?? 0) }}" min="0" required></label>
+            <label class="field">Cost price (Rs.) <small>— what you pay; used for stock value</small><input type="number" name="cost_price" value="{{ old('cost_price', $product->cost_price) }}" min="0" step="0.01"></label>
+            <label class="field">{{ $product->exists ? 'Stock quantity' : 'Opening stock' }} <small>— changes are logged in the stock history</small><input type="number" name="stock_qty" value="{{ old('stock_qty', $product->stock_qty ?? 0) }}" min="0" required></label>
+            <label class="field">Reorder level <small>— warn me when stock is at or below</small><input type="number" name="reorder_level" value="{{ old('reorder_level', $product->reorder_level ?? 3) }}" min="0"></label>
           </div>
           <p class="help" style="margin-top:12px">Customers can buy online only when there is a price and stock above 0. Otherwise they send an enquiry.</p>
+          @if ($product->exists)
+            <a class="link" href="{{ route('admin.inventory.index', ['q' => $product->sku ?: $product->name]) }}">Receive or adjust stock →</a>
+          @endif
         </section>
+
+        @if ($product->exists)
+          <section class="card">
+            <h2>Stock history <a class="link" href="{{ route('admin.inventory.movements', ['product' => $product->id]) }}">All</a></h2>
+            @php($history = $product->stockMovements()->with('user')->take(6)->get())
+            @forelse ($history as $m)
+              <div class="mini-move">
+                <span class="badge {{ $m->quantity > 0 ? 'in' : 'out' }}">{{ $m->quantity > 0 ? '+' : '' }}{{ $m->quantity }}</span>
+                <span>{{ $m->typeLabel() }}@if ($m->reference) · {{ $m->reference }}@endif<small>{{ $m->created_at->format('d M Y, H:i') }} · balance {{ $m->balance_after }}</small></span>
+              </div>
+            @empty
+              <p class="help">No stock movements yet.</p>
+            @endforelse
+          </section>
+        @endif
 
         <section class="card">
           <h2>Visibility</h2>

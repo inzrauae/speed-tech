@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\PartCategory;
 use App\Models\Product;
+use App\Services\Inventory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -98,6 +99,8 @@ class ProductController extends Controller
             'price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'compare_at_price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'stock_qty' => ['required', 'integer', 'min:0', 'max:1000000'],
+            'reorder_level' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'cost_price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'warranty' => ['nullable', 'string', 'max:100'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'remove_image' => ['nullable', 'boolean'],
@@ -112,7 +115,11 @@ class ProductController extends Controller
 
         $isPart = $data['type'] === Product::TYPE_SPARE_PART;
 
-        $product->fill(collect($data)->except(['image', 'remove_image', 'generation_ids'])->all());
+        // Stock is changed through the inventory log, not set directly.
+        $newStock = (int) $data['stock_qty'];
+        $product->fill(collect($data)->except(['image', 'remove_image', 'generation_ids', 'stock_qty'])->all());
+        $product->reorder_level = (int) ($data['reorder_level'] ?? 3);
+        $isNew = ! $product->exists;
         $product->is_featured = $request->boolean('is_featured');
         $product->is_active = $request->boolean('is_active');
         $product->category_id = $isPart ? null : $data['category_id'];
@@ -138,6 +145,12 @@ class ProductController extends Controller
 
         $product->save();
         $product->generations()->sync($isPart ? ($data['generation_ids'] ?? []) : []);
+
+        if ($isNew && $newStock > 0) {
+            Inventory::move($product, $newStock, 'opening', ['note' => 'Opening stock', 'unit_cost' => $data['cost_price'] ?? null]);
+        } elseif (! $isNew && $newStock !== (int) $product->stock_qty) {
+            Inventory::setCount($product, $newStock, ['note' => 'Changed on the product form']);
+        }
     }
 
     /** Only removes files this admin uploaded, never the bundled theme assets. */

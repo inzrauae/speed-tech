@@ -151,3 +151,24 @@ label.field small{font-weight:400;color:var(--muted)}
   .dl{grid-template-columns:1fr}
   .dl dt{margin-top:6px}
 }
+
+/* Inventory, payments */
+.stats{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.stat-warn{border-color:#f3c98b;background:#fffaf2}
+.stat-warn b{color:#a35a00}
+.inventory-table td{vertical-align:top}
+details.adjust summary{list-style:none;display:inline-flex}
+details.adjust summary::-webkit-details-marker{display:none}
+details.adjust[open] summary{background:var(--dark);color:#fff;border-color:var(--dark)}
+.adjust-form{display:grid;gap:10px;margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:8px;background:#fafafb;min-width:260px;max-width:320px}
+.adjust-form .segmented label{padding:6px 10px;font-size:12px}
+.mini-move{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.mini-move:last-child{border-bottom:0}
+.mini-move small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.pay-toggles{display:grid;gap:10px}
+.pay-toggle{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.pay-toggle:has(input[type=checkbox]:checked){border-color:var(--red);background:#fffafa}
+.pay-toggle input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--red)}
+.pay-toggle b{display:block;font-size:14px}
+.pay-toggle small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.settings-form{max-width:860px}

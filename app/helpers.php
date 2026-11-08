@@ -19,3 +19,18 @@ if (! function_exists('whatsapp_url')) {
         return $message === '' ? $url : $url.'?text='.rawurlencode($message);
     }
 }
+
+if (! function_exists('delivery_text')) {
+    /** "Delivery is Rs. 450 and free on orders over Rs. 25,000." from Admin → Payments & delivery. */
+    function delivery_text(): string
+    {
+        $fee = (float) \App\Models\Setting::read('delivery_fee');
+        $freeOver = (float) \App\Models\Setting::read('free_delivery_over');
+
+        if ($fee <= 0) {
+            return 'Delivery is free.';
+        }
+
+        return 'Delivery is '.money($fee).($freeOver > 0 ? ' and free on orders over '.money($freeOver) : '').'.';
+    }
+}

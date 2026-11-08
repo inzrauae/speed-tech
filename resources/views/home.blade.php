@@ -150,7 +150,7 @@
       <h2 id="shop-faq-title">Questions before you buy</h2>
       <div class="faq-list">
         @foreach (config('speedtech.shop_faqs') as [$question, $answer])
-          <details><summary>{{ $question }}<svg class="icon"><use href="#icon-plus"/></svg></summary><p>{{ $answer }}</p></details>
+          <details><summary>{{ $question }}<svg class="icon"><use href="#icon-plus"/></svg></summary><p>{{ str_replace(':delivery_text', delivery_text(), $answer) }}</p></details>
         @endforeach
       </div>
     </div>

@@ -51,15 +51,42 @@
       </section>
     </div>
 
-    <form class="card" method="post" action="{{ route('admin.orders.update', $order) }}">
-      @csrf @method('PATCH')
-      <h2>Status <span class="badge {{ $order->status }}">{{ $order->statusLabel() }}</span></h2>
-      <label class="field">Change status
-        <select name="status">@foreach (\App\Models\Order::STATUSES as $key => $label)<option value="{{ $key }}" @selected($order->status === $key)>{{ $label }}</option>@endforeach</select>
-      </label>
-      <p class="help" style="margin-top:8px">Cancelling returns the items to stock. Restoring a cancelled order reserves them again.</p>
-      <label class="field">Internal notes<textarea name="admin_notes" rows="5" maxlength="5000">{{ $order->admin_notes }}</textarea></label>
-      <div class="form-actions" style="margin-top:14px"><button class="btn primary" type="submit">Update order</button></div>
-    </form>
+    <div>
+      <form class="card" method="post" action="{{ route('admin.orders.update', $order) }}" id="statusForm">
+        @csrf @method('PATCH')
+        <h2>Status <span class="badge {{ $order->status }}">{{ $order->statusLabel() }}</span></h2>
+        <label class="field">Change status
+          <select name="status">@foreach (\App\Models\Order::STATUSES as $key => $label)<option value="{{ $key }}" @selected($order->status === $key)>{{ $label }}</option>@endforeach</select>
+        </label>
+        <p class="help" style="margin-top:8px">Cancelling returns the items to stock. Restoring a cancelled order reserves them again.</p>
+        <label class="field">Internal notes<textarea name="admin_notes" rows="5" maxlength="5000">{{ $order->admin_notes }}</textarea></label>
+        <div class="form-actions" style="margin-top:14px"><button class="btn primary" type="submit">Update order</button></div>
+      </form>
+
+      <form class="card" method="post" action="{{ route('admin.orders.payment', $order) }}" id="paymentForm">
+        @csrf @method('PATCH')
+        <h2>Payment <span class="badge {{ $order->isPaid() ? 'completed' : ($order->payment_status === 'refunded' ? 'cancelled' : 'pending') }}">{{ $order->paymentStatusLabel() }}</span></h2>
+        <dl class="dl">
+          <dt>Method</dt><dd>{{ $order->paymentLabel() }}</dd>
+          <dt>Amount</dt><dd><b>{{ money($order->total) }}</b></dd>
+          @if ($order->paid_at)<dt>Paid on</dt><dd>{{ $order->paid_at->format('d M Y, H:i') }}</dd>@endif
+          @if ($order->payment_method === 'bank_transfer')
+            <dt>Payment slip</dt>
+            <dd>@if ($order->payment_slip)<a class="link" href="{{ route('admin.orders.slip', $order) }}" target="_blank" rel="noopener">View uploaded slip ↗</a>@else<span class="badge muted">Not uploaded yet</span>@endif</dd>
+          @endif
+        </dl>
+        <label class="field" style="margin-top:14px">Payment status
+          <select name="payment_status">@foreach (\App\Models\Order::PAYMENT_STATUSES as $key => $label)<option value="{{ $key }}" @selected($order->payment_status === $key)>{{ $label }}</option>@endforeach</select>
+        </label>
+        <label class="field" style="margin-top:10px">Payment reference <small>bank ref / receipt no.</small><input name="payment_reference" value="{{ $order->payment_reference }}" maxlength="100"></label>
+        <div class="form-actions" style="margin-top:14px">
+          <button class="btn primary" type="submit">Save payment</button>
+          @unless ($order->isPaid())
+            <button class="btn" type="submit" name="payment_status" value="paid">Mark as paid</button>
+          @endunless
+        </div>
+        <p class="help" style="margin-top:10px">{{ $order->payment_method === 'cod' ? 'Mark as paid when the courier hands over the cash.' : ($order->payment_method === 'bank_transfer' ? 'Check the money has arrived in your account before marking as paid.' : 'Mark as paid when the customer pays at the store.') }}</p>
+      </form>
+    </div>
   </div>
 @endsection

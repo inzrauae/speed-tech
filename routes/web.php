@@ -31,6 +31,7 @@ Route::delete('/cart/items/{product}', [CartController::class, 'remove'])->name(
 Route::get('/checkout', [CheckoutController::class, 'show'])->name('checkout');
 Route::post('/checkout', [CheckoutController::class, 'store'])->middleware('throttle:6,1')->name('checkout.store');
 Route::get('/orders/{order:number}', [CheckoutController::class, 'confirmation'])->middleware('signed')->name('orders.confirmation');
+Route::post('/orders/{order:number}/slip', [CheckoutController::class, 'uploadSlip'])->middleware(['signed', 'throttle:6,1'])->name('orders.slip');
 
 Route::post('/enquiries', [EnquiryController::class, 'store'])->middleware('throttle:8,1')->name('enquiries.store');
 
@@ -74,6 +75,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('orders', [Admin\OrderController::class, 'index'])->name('orders.index');
         Route::get('orders/{order}', [Admin\OrderController::class, 'show'])->name('orders.show');
         Route::patch('orders/{order}', [Admin\OrderController::class, 'update'])->name('orders.update');
+        Route::patch('orders/{order}/payment', [Admin\OrderController::class, 'payment'])->name('orders.payment');
+        Route::get('orders/{order}/slip', [Admin\OrderController::class, 'slip'])->name('orders.slip');
+
+        Route::get('inventory', [Admin\InventoryController::class, 'index'])->name('inventory.index');
+        Route::get('inventory/movements', [Admin\InventoryController::class, 'movements'])->name('inventory.movements');
+        Route::get('inventory/export', [Admin\InventoryController::class, 'export'])->name('inventory.export');
+        Route::post('inventory/{product}/adjust', [Admin\InventoryController::class, 'adjust'])->name('inventory.adjust');
+
+        Route::get('settings', [Admin\SettingsController::class, 'edit'])->name('settings');
+        Route::put('settings', [Admin\SettingsController::class, 'update'])->name('settings.update');
 
         Route::get('enquiries', [Admin\EnquiryController::class, 'index'])->name('enquiries.index');
         Route::get('enquiries/{enquiry}', [Admin\EnquiryController::class, 'show'])->name('enquiries.show');

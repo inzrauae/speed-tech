@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Product extends Model
@@ -26,7 +27,7 @@ class Product extends Model
     protected $fillable = [
         'type', 'category_id', 'part_category_id', 'name', 'slug', 'sku', 'oem_part_number',
         'tag', 'summary', 'description', 'specification', 'connector_type', 'size',
-        'price', 'compare_at_price', 'stock_qty', 'warranty', 'image', 'is_featured', 'is_active',
+        'price', 'compare_at_price', 'cost_price', 'stock_qty', 'reorder_level', 'warranty', 'image', 'is_featured', 'is_active',
     ];
 
     protected function casts(): array
@@ -34,7 +35,9 @@ class Product extends Model
         return [
             'price' => 'decimal:2',
             'compare_at_price' => 'decimal:2',
+            'cost_price' => 'decimal:2',
             'stock_qty' => 'integer',
+            'reorder_level' => 'integer',
             'is_featured' => 'boolean',
             'is_active' => 'boolean',
         ];
@@ -53,6 +56,27 @@ class Product extends Model
     public function generations(): BelongsToMany
     {
         return $this->belongsToMany(ModelGeneration::class);
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class)->latest('id');
+    }
+
+    /** At or below its reorder level (admin inventory view). */
+    public function needsReorder(): bool
+    {
+        return $this->stock_qty <= $this->reorder_level;
+    }
+
+    public function scopeNeedsReorder(Builder $query): Builder
+    {
+        return $query->whereColumn('stock_qty', '<=', 'reorder_level');
+    }
+
+    public function stockValue(): float
+    {
+        return round((float) $this->cost_price * $this->stock_qty, 2);
     }
 
     // ----- Scopes -----

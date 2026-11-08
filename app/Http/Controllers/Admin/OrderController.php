@@ -7,8 +7,10 @@ use App\Models\Order;
 use App\Services\OrderPlacer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderController extends Controller
 {
@@ -16,6 +18,9 @@ class OrderController extends Controller
     {
         $orders = Order::withCount('items')
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+            ->when($request->query('payment'), fn ($q, $payment) => $q->where('payment_status', $payment))
+            ->when($request->query('method'), fn ($q, $method) => $q->where('payment_method', $method))
+            ->when($request->query('slip'), fn ($q) => $q->whereNotNull('payment_slip')->where('payment_status', 'unpaid'))
             ->when($request->query('q'), fn ($q, $term) => $q->where(fn ($w) => $w
                 ->where('number', 'like', "%{$term}%")
                 ->orWhere('customer_name', 'like', "%{$term}%")
@@ -50,5 +55,29 @@ class OrderController extends Controller
         }
 
         return back()->with('status', $message);
+    }
+
+    /** Record payment: mark paid / unpaid / refunded, with an optional reference. */
+    public function payment(Request $request, Order $order): RedirectResponse
+    {
+        $data = $request->validate([
+            'payment_status' => ['required', Rule::in(array_keys(Order::PAYMENT_STATUSES))],
+            'payment_reference' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $order->payment_status = $data['payment_status'];
+        $order->payment_reference = $data['payment_reference'] ?? $order->payment_reference;
+        $order->paid_at = $data['payment_status'] === 'paid' ? ($order->paid_at ?? now()) : null;
+        $order->save();
+
+        return back()->with('status', "Payment marked as {$order->paymentStatusLabel()}.");
+    }
+
+    /** Admin-only view of the customer's uploaded bank slip. */
+    public function slip(Order $order): StreamedResponse
+    {
+        abort_unless($order->payment_slip && Storage::disk('local')->exists($order->payment_slip), 404);
+
+        return Storage::disk('local')->response($order->payment_slip, "payment-slip-{$order->number}.".pathinfo($order->payment_slip, PATHINFO_EXTENSION));
     }
 }

@@ -48,7 +48,7 @@
         </dl>
         <a class="button red full" href="{{ route('checkout') }}">Proceed to checkout<svg class="icon"><use href="#icon-arrow"/></svg></a>
         <a class="text-link" href="{{ route('shop') }}">Continue shopping</a>
-        <p class="detail-note">Collect free from our Kaduwela store, or island-wide delivery {{ config('speedtech.free_delivery_over') > 0 ? '(free over '.money(config('speedtech.free_delivery_over')).')' : '' }}.</p>
+        <p class="detail-note">Collect free from our Kaduwela store, or island-wide delivery. {{ delivery_text() }}</p>
       </aside>
     @endif
   </section>

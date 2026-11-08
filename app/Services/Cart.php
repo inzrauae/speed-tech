@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Contracts\Session\Session;
 use Illuminate\Support\Collection;
 
@@ -128,9 +129,9 @@ class Cart
         if ($fulfilment !== 'delivery') {
             return 0.0;
         }
-        $freeOver = (float) config('speedtech.free_delivery_over');
+        $freeOver = (float) Setting::read('free_delivery_over');
 
-        return $freeOver > 0 && ($subtotal ?? $this->subtotal()) >= $freeOver ? 0.0 : (float) config('speedtech.delivery_fee');
+        return $freeOver > 0 && ($subtotal ?? $this->subtotal()) >= $freeOver ? 0.0 : (float) Setting::read('delivery_fee');
     }
 
     public function summary(): array

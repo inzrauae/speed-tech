@@ -19,6 +19,8 @@
           ['admin.orders.index', 'Orders', 'cart', 'admin.orders.*'],
           ['admin.enquiries.index', 'Enquiries & repairs', 'mail', 'admin.enquiries.*'],
           ['admin.products.index', 'Products', 'box', 'admin.products.*'],
+          ['admin.inventory.index', 'Inventory', 'storage', 'admin.inventory.*'],
+          ['admin.settings', 'Payments & delivery', 'tag', 'admin.settings*'],
         ])
         @foreach ($nav as [$route, $label, $icon, $pattern])
           <a href="{{ route($route) }}" @class(['active' => request()->routeIs($pattern)])><svg class="icon"><use href="#icon-{{ $icon }}"/></svg>{{ $label }}</a>

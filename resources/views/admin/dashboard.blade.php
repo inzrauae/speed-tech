@@ -47,14 +47,30 @@
     </section>
   </div>
 
+  @if ($awaitingPayment->isNotEmpty())
+    <section class="card">
+      <h2>Bank transfers to check <a class="link" href="{{ route('admin.orders.index', ['payment' => 'unpaid', 'method' => 'bank_transfer']) }}">All</a></h2>
+      <div class="table-wrap"><table class="data"><tbody>
+        @foreach ($awaitingPayment as $order)
+          <tr>
+            <td><a class="link" href="{{ route('admin.orders.show', $order) }}">{{ $order->number }}</a><small>{{ $order->created_at->diffForHumans() }}</small></td>
+            <td>{{ $order->customer_name }}</td>
+            <td>@if ($order->payment_slip)<span class="badge confirmed">Slip uploaded</span>@else<span class="badge pending">No slip yet</span>@endif</td>
+            <td class="num">{{ money($order->total) }}</td>
+          </tr>
+        @endforeach
+      </tbody></table></div>
+    </section>
+  @endif
+
   <section class="card">
-    <h2>Low stock <small>priced items with {{ \App\Models\Product::LOW_STOCK }} or fewer left</small></h2>
+    <h2>Low stock <small>at or below each product's reorder level · <a class="link" href="{{ route('admin.inventory.index', ['stock' => 'reorder']) }}">Inventory</a></small></h2>
     <div class="table-wrap"><table class="data">
       <tbody>
         @forelse ($lowStock as $product)
           <tr>
             <td><a class="link" href="{{ route('admin.products.edit', $product) }}">{{ $product->name }}</a><small>{{ $product->oem_part_number ?: $product->sku }}</small></td>
-            <td class="num"><span class="badge {{ $product->stockState() }}">{{ $product->stock_qty }} left</span></td>
+            <td class="num"><span class="badge {{ $product->stock_qty === 0 ? 'out' : 'low' }}">{{ $product->stock_qty }} left</span><small>reorder at {{ $product->reorder_level }}</small></td>
           </tr>
         @empty
           <tr><td class="empty-row">Stock levels look healthy.</td></tr>

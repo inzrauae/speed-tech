@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\LaptopModel;
 use App\Models\PartCategory;
 use App\Models\Product;
+use App\Models\StockMovement;
 use Illuminate\Database\Seeder;
 
 /**
@@ -33,11 +34,14 @@ class DemoProductSeeder extends Seeder
             ['HDMI cable 1.5m', 'cables', null, 'CONNECT', '4K-ready HDMI cable for monitors and TVs.', 'HDMI 2.0, 1.5 metre, gold-plated connectors.', 1200, 30, false],
         ];
         foreach ($accessories as [$name, $slug, $image, $tag, $summary, $description, $price, $stock, $featured]) {
-            Product::updateOrCreate(['name' => $name], [
+            $before = Product::where('name', $name)->value('stock_qty');
+            $product = Product::updateOrCreate(['name' => $name], [
                 'type' => Product::TYPE_ACCESSORY, 'category_id' => $cat[$slug] ?? null, 'image' => $image,
                 'tag' => $tag, 'summary' => $summary, 'description' => $description, 'price' => $price,
                 'stock_qty' => $stock, 'warranty' => $price ? '6 months' : null, 'is_featured' => $featured,
+                'cost_price' => $price ? round($price * 0.72, -1) : null, 'reorder_level' => 3,
             ]);
+            $this->logStock($product, $before);
         }
 
         // [name, part slug, OEM P/N, spec, connector, size, price, stock, warranty, fits: [model name => generation label|null(all)]]
@@ -64,13 +68,17 @@ class DemoProductSeeder extends Seeder
 
         $models = LaptopModel::with('generations')->get()->keyBy('name');
         foreach ($spareParts as [$name, $slug, $pn, $spec, $connector, $size, $price, $stock, $warranty, $fits]) {
+            $before = Product::where('name', $name)->value('stock_qty');
             $product = Product::updateOrCreate(['name' => $name], [
                 'type' => Product::TYPE_SPARE_PART, 'part_category_id' => $part[$slug] ?? null,
                 'oem_part_number' => $pn, 'sku' => 'SP-'.$pn, 'specification' => $spec, 'connector_type' => $connector,
                 'size' => $size, 'price' => $price, 'stock_qty' => $stock, 'warranty' => $warranty,
+                'cost_price' => $price ? round($price * 0.65, -1) : null, 'reorder_level' => 2,
                 'summary' => $spec, 'tag' => 'GENUINE / OEM-GRADE',
                 'description' => 'We confirm the OEM part number, connector and compatibility with your exact laptop before fitting or dispatch. Bring your laptop in and we can fit it for you.',
             ]);
+
+            $this->logStock($product, $before);
 
             $generationIds = [];
             foreach ($fits as $modelName => $label) {
@@ -83,5 +91,21 @@ class DemoProductSeeder extends Seeder
             }
             $product->generations()->sync($generationIds);
         }
+    }
+
+    /** Record the seeded stock level in the stock history (opening stock or a demo reset). */
+    private function logStock(Product $product, ?int $before): void
+    {
+        $diff = $product->stock_qty - (int) $before;
+        if ($diff === 0) {
+            return;
+        }
+        StockMovement::create([
+            'product_id' => $product->id,
+            'type' => $before === null ? 'opening' : 'adjustment',
+            'quantity' => $diff,
+            'balance_after' => $product->stock_qty,
+            'note' => $before === null ? 'Opening stock (sample data)' : 'Sample data reset',
+        ]);
     }
 }

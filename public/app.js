@@ -233,16 +233,25 @@ if (checkout) {
     $('[data-delivery-output]', checkout).textContent = delivery ? (fee > 0 ? format(fee) : 'Free') : 'Free';
     $('[data-total-output]', checkout).textContent = format(subtotal + (delivery ? fee : 0));
 
-    // Cash on delivery only for delivery; paying in store only for collection.
-    const hidden = delivery ? 'pay_at_store' : 'cod';
-    $$('[data-payment]', checkout).forEach(option => {
-      option.hidden = option.dataset.payment === hidden;
-      const radio = $('input', option);
-      if (option.hidden && radio.checked) {
-        radio.checked = false;
-        $(`[data-payment="${delivery ? 'cod' : 'pay_at_store'}"] input`, checkout).checked = true;
-      }
+    // Show only the payment methods that work with this delivery option
+    // (e.g. cash on delivery for delivery, pay at the store for pickup).
+    const fulfilment = delivery ? 'delivery' : 'pickup';
+    const options = $$('[data-payment]', checkout);
+    options.forEach(option => {
+      option.hidden = !option.dataset.for.split(' ').includes(fulfilment);
+      if (option.hidden) $('input', option).checked = false;
     });
+    if (!options.some(option => !option.hidden && $('input', option).checked)) {
+      // Default: cash on delivery for delivery, pay at the store for pickup.
+      const preferred = { delivery: 'cod', pickup: 'pay_at_store' }[fulfilment];
+      const pick = options.find(option => !option.hidden && option.dataset.payment === preferred)
+        || options.find(option => !option.hidden);
+      if (pick) $('input', pick).checked = true;
+    }
+
+    // Bank account details only when paying by bank transfer.
+    const bank = $('[data-bank-details]', checkout);
+    if (bank) bank.hidden = checkout.elements.payment_method.value !== 'bank_transfer';
   }
 
   checkout.addEventListener('change', syncCheckout);

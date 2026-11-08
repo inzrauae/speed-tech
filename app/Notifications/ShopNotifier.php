@@ -22,7 +22,7 @@ class ShopNotifier
             "Order: {$order->number}",
             "Customer: {$order->customer_name}, {$order->phone}".($order->email ? ", {$order->email}" : ''),
             "Fulfilment: {$order->fulfilmentLabel()}".($order->address ? " – {$order->address}, {$order->city}" : ''),
-            "Payment: {$order->paymentLabel()}",
+            "Payment: {$order->paymentLabel()} ({$order->paymentStatusLabel()})",
             '',
             ...$lines,
             '',
@@ -48,6 +48,15 @@ class ShopNotifier
             $enquiry->message ? "\n{$enquiry->message}\n" : null,
             route('admin.enquiries.show', $enquiry),
         ])));
+    }
+
+    public static function slipUploaded(Order $order): void
+    {
+        self::send("Payment slip uploaded for order {$order->number}", implode("\n", [
+            "{$order->customer_name} uploaded a bank transfer slip for order {$order->number} (".money($order->total).').',
+            'Check the slip and mark the order as paid:',
+            route('admin.orders.show', $order),
+        ]));
     }
 
     private static function send(string $subject, string $body): void

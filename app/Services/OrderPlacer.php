@@ -46,7 +46,12 @@ class OrderPlacer
                     'quantity' => $line['quantity'],
                     'line_total' => $lineTotal,
                 ];
-                $product->decrement('stock_qty', $line['quantity']);
+            }
+
+            if (! in_array($customer['payment_method'], Order::allowedPaymentMethods($customer['fulfilment'], $subtotal), true)) {
+                throw ValidationException::withMessages([
+                    'payment_method' => 'That payment method is not available for this order. Please choose another.',
+                ]);
             }
 
             $deliveryFee = $this->cart->deliveryFee($customer['fulfilment'], $subtotal);
@@ -68,6 +73,10 @@ class OrderPlacer
             ]);
             $order->items()->createMany($items);
 
+            foreach ($items as $item) {
+                Inventory::move($item['product_id'], -$item['quantity'], 'sale', ['reference' => $order->number, 'user_id' => null]);
+            }
+
             return $order;
         });
 
@@ -86,13 +95,12 @@ class OrderPlacer
 
             if ($wasHolding !== $nowHolding) {
                 foreach ($order->items()->whereNotNull('product_id')->get() as $item) {
-                    $product = Product::lockForUpdate()->find($item->product_id);
-                    if (! $product) {
+                    if (! Product::whereKey($item->product_id)->exists()) {
                         continue;
                     }
                     $nowHolding
-                        ? $product->decrement('stock_qty', min($item->quantity, $product->stock_qty))
-                        : $product->increment('stock_qty', $item->quantity);
+                        ? Inventory::move($item->product_id, -$item->quantity, 'sale', ['reference' => $order->number, 'note' => 'Order restored'], clamp: true)
+                        : Inventory::move($item->product_id, $item->quantity, 'returned', ['reference' => $order->number, 'note' => 'Order cancelled']);
                 }
             }
 

@@ -24,12 +24,27 @@
         </div>
       </fieldset>
 
+      @php
+        $fulfilmentChoices = array_keys(array_filter($paymentOptions));      // options with at least one payment method
+        $chosenFulfilment = old('fulfilment', in_array('pickup', $fulfilmentChoices) ? 'pickup' : ($fulfilmentChoices[0] ?? 'delivery'));
+        $methodsFor = [];                                                       // method => [fulfilment options]
+        foreach ($paymentOptions as $fulfilment => $methods) { foreach ($methods as $m) { $methodsFor[$m][] = $fulfilment; } }
+        $preferred = ['pickup' => 'pay_at_store', 'delivery' => 'cod'][$chosenFulfilment] ?? null;
+        $chosenMethod = old('payment_method', in_array($preferred, $paymentOptions[$chosenFulfilment] ?? []) ? $preferred : ($paymentOptions[$chosenFulfilment][0] ?? null));
+        $methodInfo = [
+          'cod' => ['Cash on delivery', 'Pay the courier in cash when your order arrives.', 'truck'],
+          'bank_transfer' => ['Bank transfer', 'Transfer to our bank account. We dispatch once the payment is received.', 'tag'],
+          'pay_at_store' => ['Pay at the store', 'Cash or card when you collect from our Kaduwela store.', 'pin'],
+        ];
+      @endphp
+
       <fieldset class="form-card">
         <legend>Collection or delivery</legend>
         @foreach (\App\Models\Order::FULFILMENT as $value => $label)
+          @continue(! in_array($value, $fulfilmentChoices))
           <label class="option-card">
-            <input type="radio" name="fulfilment" value="{{ $value }}" @checked(old('fulfilment', 'pickup') === $value) required>
-            <span><b>{{ $label }}</b><small>{{ $value === 'pickup' ? 'Free · 300/2/1 Samagi Mawatha, Kaduwela' : (config('speedtech.free_delivery_over') > 0 ? money($deliveryFee).' · free over '.money(config('speedtech.free_delivery_over')) : money($deliveryFee)) }}</small></span>
+            <input type="radio" name="fulfilment" value="{{ $value }}" @checked($chosenFulfilment === $value) required>
+            <span><b>{{ $label }}</b><small>{{ $value === 'pickup' ? 'Free · 300/2/1 Samagi Mawatha, Kaduwela' : ($freeDeliveryOver > 0 ? money($deliveryFee).' · free over '.money($freeDeliveryOver) : ($deliveryFee > 0 ? money($deliveryFee) : 'Free delivery')) }}</small></span>
           </label>
         @endforeach
         <div class="form-grid" data-delivery-fields>
@@ -40,12 +55,23 @@
 
       <fieldset class="form-card">
         <legend>Payment</legend>
-        @foreach (\App\Models\Order::PAYMENT_METHODS as $value => $label)
-          <label class="option-card" data-payment="{{ $value }}">
-            <input type="radio" name="payment_method" value="{{ $value }}" @checked(old('payment_method', 'pay_at_store') === $value) required>
-            <span><b>{{ $label }}</b><small>{{ ['pay_at_store' => 'Cash or card when you collect', 'cod' => 'Pay the courier in cash', 'bank_transfer' => config('speedtech.bank_details')][$value] }}</small></span>
+        @foreach ($methodInfo as $value => [$label, $help, $icon])
+          @continue(! isset($methodsFor[$value]))
+          <label class="option-card pay-option" data-payment="{{ $value }}" data-for="{{ implode(' ', $methodsFor[$value]) }}">
+            <input type="radio" name="payment_method" value="{{ $value }}" @checked($chosenMethod === $value) required>
+            <span><b><svg class="icon"><use href="#icon-{{ $icon }}"/></svg>{{ $label }}</b><small>{{ $help }}</small></span>
           </label>
         @endforeach
+        @if (isset($methodsFor['bank_transfer']))
+          <div class="bank-box" data-bank-details>
+            <b>Our bank account</b>
+            @if ($bankDetails)
+              <dl>@foreach ($bankDetails as $label => $value)<div><dt>{{ $label }}</dt><dd>{{ $value }}</dd></div>@endforeach</dl>
+            @endif
+            @if ($bankInstructions)<p>{{ $bankInstructions }}</p>@endif
+            <p>You'll get your order number on the next page, with an option to upload the payment slip.</p>
+          </div>
+        @endif
         @error('payment_method')<span class="field-error">{{ $message }}</span>@enderror
       </fieldset>
 

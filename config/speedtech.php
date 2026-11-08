@@ -139,8 +139,8 @@ return [
     // Home page: shopping questions.
     'shop_faqs' => [
         ['How do I find the right spare part?', 'Use the finder to choose your laptop brand, model and year, then the part type. Parts can differ within the same model, so check the part number printed on your old part or laptop label. Not sure? Send us a part request or a photo on WhatsApp and we will confirm it before you buy.'],
-        ['Do you deliver?', 'Yes, we deliver island-wide. Delivery is Rs. '.number_format((float) env('SHOP_DELIVERY_FEE', 450)).((float) env('SHOP_FREE_DELIVERY_OVER', 25000) > 0 ? ' and free on orders over Rs. '.number_format((float) env('SHOP_FREE_DELIVERY_OVER', 25000)) : '').'. You can also collect free of charge from our Kaduwela store.'],
-        ['How can I pay?', 'Pay at the store when you collect, cash on delivery, or by bank transfer. We call you to confirm every order before it is dispatched.'],
+        ['Do you deliver?', 'Yes, we deliver island-wide. :delivery_text You can also collect free of charge from our Kaduwela store.'],
+        ['How can I pay?', 'Choose cash on delivery or bank transfer at checkout, or pay at the store when you collect. For bank transfers you can upload the payment slip after ordering. We call you to confirm every order before it is dispatched.'],
         ['Can you fit the part for me?', 'Yes. Order the part and mention fitting in your order notes, or bring your laptop to our store. We will fit and test it for you.'],
         ['What if an item shows "Price on request"?', 'Prices for some items change with supplier stock. Tap "Ask for price" and we will reply with the current price and availability, usually the same day.'],
     ],
