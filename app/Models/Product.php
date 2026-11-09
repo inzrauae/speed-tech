@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasSlug;
+use App\Services\SkuGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -29,6 +30,14 @@ class Product extends Model
         'tag', 'summary', 'description', 'specification', 'connector_type', 'size',
         'price', 'compare_at_price', 'cost_price', 'stock_qty', 'reorder_level', 'warranty', 'image', 'is_featured', 'is_active',
     ];
+
+    protected static function booted(): void
+    {
+        // Every product gets a stock code (e.g. LCD-00012) unless one was typed in.
+        static::saving(function (Product $product) {
+            $product->sku = filled($product->sku) ? Str::upper(trim($product->sku)) : app(SkuGenerator::class)->for($product);
+        });
+    }
 
     protected function casts(): array
     {

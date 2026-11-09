@@ -11,7 +11,7 @@
 <body class="login-page">
   <form class="login-card" method="post" action="{{ route('admin.login') }}">
     @csrf
-    <img src="{{ asset('assets/logo.png') }}" alt="SpeedTech IT Solutions" width="681" height="284">
+    <img src="{{ asset('assets/logo.png') }}" alt="SpeedTech IT Solutions" width="874" height="169">
     <h1>Admin sign in</h1>
     @if ($errors->any())<div class="alert err">{{ $errors->first() }}</div>@endif
     <label class="field">E-mail<input type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username"></label>

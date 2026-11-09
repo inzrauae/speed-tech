@@ -51,7 +51,7 @@
         <caption>Specifications</caption>
         <tbody>
           @if ($product->oem_part_number)<tr><th>OEM part number</th><td>{{ $product->oem_part_number }}</td></tr>@endif
-          @if ($product->sku)<tr><th>SKU</th><td>{{ $product->sku }}</td></tr>@endif
+          @if ($product->sku)<tr><th>Product code</th><td>{{ $product->sku }}</td></tr>@endif
           @if ($product->specification)<tr><th>Specification</th><td>{{ $product->specification }}</td></tr>@endif
           @if ($product->connector_type)<tr><th>Connector</th><td>{{ $product->connector_type }}</td></tr>@endif
           @if ($product->size)<tr><th>Size</th><td>{{ $product->size }}</td></tr>@endif

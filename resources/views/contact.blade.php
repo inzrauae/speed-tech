@@ -18,7 +18,7 @@
   <section class="wrap contact-methods" aria-label="Ways to contact us">
     <a class="method-card" href="tel:{{ $shop['phone'] }}">
       <span class="service-icon"><svg class="icon"><use href="#icon-phone"/></svg></span>
-      <b>Call us</b><span>{{ $shop['phone_display'] }}</span>
+      <b>Hotline</b><span>{{ $shop['phone_display'] }}</span>
     </a>
     <a class="method-card method-whatsapp" href="{{ whatsapp_url('Hi SpeedTech, I have a question.') }}" target="_blank" rel="noopener">
       <span class="service-icon"><svg class="icon"><use href="#icon-whatsapp"/></svg></span>
@@ -61,6 +61,11 @@
       <div class="form-card visit-card">
         <h2>Visit SpeedTech IT Solutions</h2>
         <p>{{ $shop['address'] }}</p>
+        <div class="phone-list">
+          <h3>Call us</h3>
+          <a class="phone-hotline" href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg><span><small>Hotline</small>{{ $shop['phone_display'] }}</span></a>
+          @foreach ($shop['other_phones'] as [$display, $dial])<a href="tel:{{ $dial }}"><svg class="icon"><use href="#icon-phone"/></svg><span>{{ $display }}</span></a>@endforeach
+        </div>
         <div class="help-actions">
           <a class="button red" href="{{ $shop['maps_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-pin"/></svg>Get directions</a>
         </div>

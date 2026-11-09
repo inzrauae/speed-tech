@@ -168,3 +168,11 @@
 .slip-done{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:6px;background:#eefaf1;color:#14632b;font-size:12px;line-height:1.5}
 .slip-done .icon{width:16px;height:16px;flex-shrink:0;margin-top:1px}
 @media(max-width:700px){.bank-pay-grid{grid-template-columns:1fr}.bank-box dt{min-width:96px}}
+/* Contact page phone list */
+.phone-list{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 16px;padding:14px 0;border-block:1px solid var(--line)}
+.phone-list h3{grid-column:1 / -1;font-size:15px;margin:0 0 2px}
+.phone-list a{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-weight:600;transition:border-color .2s,color .2s}
+.phone-list a:hover{border-color:var(--red);color:var(--red)}.phone-list .icon{width:15px;height:15px;color:var(--red);flex-shrink:0}
+.phone-list .phone-hotline{grid-column:1 / -1;background:#ed171f0a;border-color:#ed171f40}.phone-list .phone-hotline span{font-size:15px}
+.phone-list small{display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--red)}
+@media(max-width:700px){.phone-list{grid-template-columns:1fr}}

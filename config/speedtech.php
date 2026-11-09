@@ -85,8 +85,18 @@ $repairServices = [
 
 return [
     'name' => env('APP_NAME', 'SpeedTech IT Solutions'),
+    // Company registration (Certificate of Incorporation, Companies Act No. 7 of 2007)
+    'legal_name' => 'SpeedTech IT Solutions (Pvt) Ltd',
+    'reg_no' => 'PV 00336923',
+    'incorporated' => '10 August 2025',
     'phone' => env('SHOP_PHONE', '+94750591279'),
-    'phone_display' => env('SHOP_PHONE_DISPLAY', '075 059 1279'),
+    'phone_display' => env('SHOP_PHONE_DISPLAY', '0750-591279'),
+    // Extra numbers shown in the footer and on the Contact page (display, dial).
+    'other_phones' => [
+        ['0112-591279', '+94112591279'],
+        ['0781-591279', '+94781591279'],
+        ['0710-591279', '+94710591279'],
+    ],
     'whatsapp' => env('SHOP_WHATSAPP', '94750591279'),
     'email' => env('SHOP_EMAIL', 'info@speedtech.lk'),
     'address' => env('SHOP_ADDRESS', '300/2/1 Samagi Mawatha, Kaduwela 10640, Sri Lanka'),

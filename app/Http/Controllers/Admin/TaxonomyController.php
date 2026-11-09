@@ -76,9 +76,22 @@ class TaxonomyController extends Controller
             'name' => ['required', 'string', 'max:100'],
             'slug' => ['nullable', 'alpha_dash', 'max:100', Rule::unique($item->getTable())->ignore($item->id)],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:10000'],
-        ]);
+        ] + ($type === 'brands' ? [] : [
+            // Must not clash with any other category or part type (both feed product codes).
+            'sku_prefix' => ['nullable', 'alpha', 'min:2', 'max:4', function ($attr, $value, $fail) use ($item) {
+                $value = strtoupper($value);
+                $clash = Category::where('sku_prefix', $value)->when($item instanceof Category, fn ($q) => $q->whereKeyNot($item->id))->exists()
+                    || PartCategory::where('sku_prefix', $value)->when($item instanceof PartCategory, fn ($q) => $q->whereKeyNot($item->id))->exists();
+                if ($clash) {
+                    $fail("The code {$value} is already used by another category or part type.");
+                }
+            }],
+        ]));
         $data['sort_order'] = $data['sort_order'] ?? 0;
         $data['is_active'] = $request->boolean('is_active');
+        if ($type !== 'brands' && blank($data['sku_prefix'] ?? null)) {
+            $data['sku_prefix'] = $item->sku_prefix; // keep existing; new ones are derived from the name
+        }
         if (blank($data['slug'] ?? null)) {
             $data['slug'] = $item->slug; // keep existing; HasSlug fills new ones
         }

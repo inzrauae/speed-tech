@@ -44,7 +44,7 @@
           <h2>Part details <small>Don't rely on model and year alone — record the OEM number, connector and size.</small></h2>
           <div class="form-grid three">
             <label class="field">OEM part number<input name="oem_part_number" value="{{ old('oem_part_number', $product->oem_part_number) }}" maxlength="100"></label>
-            <label class="field">SKU <small>(your stock code)</small><input name="sku" value="{{ old('sku', $product->sku) }}" maxlength="100"></label>
+            <label class="field">Product code / SKU <small>(blank = auto, e.g. LCD-00012)</small><input name="sku" value="{{ old('sku', $product->sku) }}" maxlength="100" placeholder="Generated on save"></label>
             <label class="field">Warranty<input name="warranty" value="{{ old('warranty', $product->warranty) }}" maxlength="100" placeholder="3 months"></label>
             <label class="field span-2">Specification<input name="specification" value="{{ old('specification', $product->specification) }}" maxlength="255" placeholder='15.6", FHD, 30-pin'></label>
             <label class="field">Size<input name="size" value="{{ old('size', $product->size) }}" maxlength="255" placeholder='15.6"'></label>

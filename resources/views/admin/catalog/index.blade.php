@@ -9,6 +9,7 @@
       @csrf
       <input class="w-lg" name="name" placeholder="Name" required maxlength="100">
       <input class="w-md" name="slug" placeholder="slug (optional)" maxlength="100">
+      @if ($type !== 'brands')<input class="w-sm" name="sku_prefix" placeholder="Code" maxlength="4" title="Product code prefix, e.g. LCD. Leave blank to create one from the name.">@endif
       <input class="w-sm" type="number" name="sort_order" placeholder="Sort" min="0" value="{{ $items->max('sort_order') + 1 }}">
       <input type="hidden" name="is_active" value="1">
       <button class="btn primary" type="submit"><svg class="icon"><use href="#icon-plus"/></svg>Add</button>
@@ -16,7 +17,7 @@
   </section>
 
   <div class="table-wrap"><table class="data">
-    <thead><tr><th>Name / slug / sort / visible</th><th class="num">{{ $type === 'brands' ? 'Models' : 'Products' }}</th><th></th></tr></thead>
+    <thead><tr><th>Name / slug{{ $type !== 'brands' ? ' / code' : '' }} / sort / visible</th><th class="num">{{ $type === 'brands' ? 'Models' : 'Products' }}</th><th></th></tr></thead>
     <tbody>
       @forelse ($items as $item)
         <tr>
@@ -25,6 +26,7 @@
               @csrf @method('PUT')
               <input class="w-lg" name="name" value="{{ $item->name }}" required maxlength="100" aria-label="Name">
               <input class="w-md" name="slug" value="{{ $item->slug }}" maxlength="100" aria-label="Slug">
+              @if ($type !== 'brands')<input class="w-sm" name="sku_prefix" value="{{ $item->sku_prefix }}" maxlength="4" aria-label="Product code prefix" title="Product code prefix. New products in this group are numbered {{ $item->sku_prefix }}-00001, {{ $item->sku_prefix }}-00002…">@endif
               <input class="w-sm" type="number" name="sort_order" value="{{ $item->sort_order }}" min="0" aria-label="Sort order">
               <label class="check"><input type="checkbox" name="is_active" value="1" @checked($item->is_active)> Visible</label>
               <button class="btn sm" type="submit">Save</button>

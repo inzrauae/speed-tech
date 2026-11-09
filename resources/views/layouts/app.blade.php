@@ -18,19 +18,21 @@
   @include('partials.icons')
   <a class="skip-link" href="#main">Skip to content</a>
 
+  <div class="corp-strip"><div class="wrap"><svg class="icon"><use href="#icon-shield"/></svg><b>{{ $shop['legal_name'] }}</b><span class="corp-sep">|</span><span>Company Reg. No. <b>{{ $shop['reg_no'] }}</b></span></div></div>
+
   <div class="topbar"><div class="wrap topbar-inner"><div class="top-contact">
     <a href="{{ $shop['maps_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-pin"/></svg>Kaduwela, Sri Lanka</a>
-    <a href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg>{{ $shop['phone_display'] }}</a>
+    <a href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg>Hotline {{ $shop['phone_display'] }}</a>
     <a class="top-email" href="mailto:{{ $shop['email'] }}"><svg class="icon"><use href="#icon-mail"/></svg>{{ $shop['email'] }}</a>
   </div><div class="top-right"><span class="top-tagline">Your local people. Your tech, sorted.</span>@include('partials.social', ['class' => 'social-top'])</div></div></div>
 
   <header class="masthead"><div class="wrap header">
-    <a class="brand" href="{{ route('home') }}" aria-label="{{ $shop['name'] }} home"><img class="logo" src="{{ asset('assets/logo.png') }}" width="681" height="284" alt="{{ $shop['name'] }}"></a>
+    <a class="brand" href="{{ route('home') }}" aria-label="{{ $shop['name'] }} home"><img class="logo" src="{{ asset('assets/logo.png') }}" width="874" height="169" alt="{{ $shop['name'] }}"></a>
     <form class="search" action="{{ route('shop') }}" method="get" role="search">
       <input name="q" type="search" value="{{ request()->routeIs('shop') ? request('q') : '' }}" aria-label="Search products" placeholder="Search parts, part numbers, accessories…" autocomplete="off" maxlength="100">
       <button type="submit" aria-label="Search"><svg class="icon"><use href="#icon-search"/></svg></button>
     </form>
-    <a class="header-help" href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-headphones"/></svg><span><small>Need expert advice?</small><b>{{ $shop['phone_display'] }}</b></span></a>
+    <a class="header-help" href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-headphones"/></svg><span><small>Hotline · Expert advice</small><b>{{ $shop['phone_display'] }}</b></span></a>
     <a class="bag" href="{{ route('cart') }}" aria-label="Cart, {{ $cartCount }} {{ Str::plural('item', $cartCount) }}" data-cart-link>
       <span class="bag-icon"><svg class="icon"><use href="#icon-cart"/></svg><span id="count">{{ $cartCount }}</span></span>
       <span class="bag-label"><b>My cart</b><small>Review &amp; checkout</small></span>
@@ -68,12 +70,54 @@
     </div>
   </section>
 
-  <footer><div class="wrap footer-top">
-    <div class="footer-brand"><a href="{{ route('home') }}" aria-label="SpeedTech home"><img src="{{ asset('assets/logo-light.png') }}" width="681" height="284" alt="{{ $shop['name'] }}"></a><p>Repair <span>•</span> Upgrade <span>•</span> Shop</p></div>
-    <div class="footer-links"><h2>Quick links</h2><a href="{{ route('spare-parts') }}">Laptop spare parts</a><a href="{{ route('shop') }}">Computer accessories</a><a href="{{ route('repairs') }}">Repair services</a><a href="{{ route('about') }}">About us</a><a href="{{ route('contact') }}">Contact us</a><a href="{{ route('cart') }}">My cart</a></div>
-    <div class="footer-links" id="contact"><h2>Contact us</h2><a href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg>{{ $shop['phone_display'] }}</a><a href="mailto:{{ $shop['email'] }}"><svg class="icon"><use href="#icon-mail"/></svg>{{ $shop['email'] }}</a><a href="{{ $shop['maps_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-pin"/></svg>{{ $shop['address'] }}</a><a href="{{ $shop['reviews_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-check"/></svg>Read our Google reviews</a></div>
-    <div class="footer-connect"><h2>Let's talk tech.</h2><p>Good advice is just a message away.</p>@include('partials.social', ['class' => 'social-footer'])<a class="button whatsapp-link" href="{{ whatsapp_url() }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-whatsapp"/></svg>Chat on WhatsApp<svg class="icon"><use href="#icon-arrow"/></svg></a></div>
-  </div><div class="wrap footer-bottom"><span>© {{ date('Y') }} {{ $shop['name'] }}. All rights reserved.</span><span>Your tech. In good hands.</span></div></footer>
+  <footer>
+    <div class="wrap footer-cta">
+      <div><h2>Let's talk tech.</h2><p>Not sure which part fits, or what's wrong with your device? Good advice is just a message away.</p></div>
+      <div class="footer-cta-actions">
+        <a class="button footer-call" href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg>{{ $shop['phone_display'] }}</a>
+        <a class="button whatsapp-link" href="{{ whatsapp_url() }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-whatsapp"/></svg>Chat on WhatsApp<svg class="icon"><use href="#icon-arrow"/></svg></a>
+      </div>
+    </div>
+
+    <div class="wrap footer-top">
+      <div class="footer-brand">
+        <a href="{{ route('home') }}" aria-label="SpeedTech home"><img src="{{ asset('assets/logo-light.png') }}" width="874" height="169" alt="{{ $shop['name'] }}"></a>
+        <p class="footer-tagline">Repair <span>•</span> Upgrade <span>•</span> Shop</p>
+        <p class="footer-about">A trusted name in IT repair and support since 2003. Laptop and PC repairs, genuine spare parts and accessories, delivered island-wide from Kaduwela.</p>
+        @include('partials.social', ['class' => 'social-footer'])
+      </div>
+      <div class="footer-links"><h2>Shop</h2>
+        <a href="{{ route('spare-parts') }}">Laptop spare parts</a>
+        <a href="{{ route('shop') }}">Computer accessories</a>
+        <a href="{{ route('cart') }}">My cart</a>
+        <a href="{{ route('checkout') }}">Checkout</a>
+      </div>
+      <div class="footer-links"><h2>Repair services</h2>
+        @foreach (array_slice($shop['repair_services'], 0, 5) as $service)<a href="{{ route('repairs.show', $service['slug']) }}">{{ $service['name'] }}</a>@endforeach
+        <a class="footer-more" href="{{ route('repairs') }}">All services<svg class="icon"><use href="#icon-arrow"/></svg></a>
+      </div>
+      <div class="footer-links"><h2>Company</h2>
+        <a href="{{ route('about') }}">About us</a>
+        <a href="{{ route('contact') }}">Contact us</a>
+        <a href="{{ $shop['reviews_url'] }}" target="_blank" rel="noopener">Google reviews</a>
+        @if ($shop['facebook_url'])<a href="{{ $shop['facebook_url'] }}" target="_blank" rel="noopener">Facebook page</a>@endif
+      </div>
+      <div class="footer-links footer-contact" id="contact"><h2>Contact us</h2>
+        <a class="footer-hotline" href="tel:{{ $shop['phone'] }}"><svg class="icon"><use href="#icon-phone"/></svg><span><small>Hotline</small>{{ $shop['phone_display'] }}</span></a>
+        <div class="footer-phones">@foreach ($shop['other_phones'] as [$display, $dial])<a href="tel:{{ $dial }}">{{ $display }}</a>@endforeach</div>
+        <a href="mailto:{{ $shop['email'] }}"><svg class="icon"><use href="#icon-mail"/></svg>{{ $shop['email'] }}</a>
+        <a href="{{ $shop['maps_url'] }}" target="_blank" rel="noopener"><svg class="icon"><use href="#icon-pin"/></svg>{{ $shop['address'] }}</a>
+      </div>
+    </div>
+
+    <div class="wrap footer-info">
+      <div><svg class="icon"><use href="#icon-truck"/></svg><span><b>Island-wide delivery</b>{{ delivery_text() }} Or collect free in Kaduwela.</span></div>
+      <div><svg class="icon"><use href="#icon-tag"/></svg><span><b>Ways to pay</b>Bank transfer or cash on delivery.</span></div>
+      <div><svg class="icon"><use href="#icon-shield"/></svg><span><b>Registered company</b>{{ $shop['legal_name'] }}, Reg. No. {{ $shop['reg_no'] }}</span></div>
+    </div>
+
+    <div class="wrap footer-bottom"><span>© {{ date('Y') }} {{ $shop['legal_name'] }}. All rights reserved.</span><span>Your tech. In good hands.</span></div>
+  </footer>
 
   {{-- Repair booking --}}
   <dialog id="repairDialog" aria-labelledby="repair-title">

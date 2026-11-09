@@ -12,7 +12,7 @@
   @include('partials.icons')
   <div class="admin">
     <aside class="sidebar">
-      <a class="side-brand" href="{{ route('admin.dashboard') }}"><img src="{{ asset('assets/logo-light.png') }}" alt="SpeedTech" width="681" height="284"><span>Admin</span></a>
+      <a class="side-brand" href="{{ route('admin.dashboard') }}"><img src="{{ asset('assets/logo-light.png') }}" alt="SpeedTech" width="874" height="169"><span>Admin</span></a>
       <nav aria-label="Admin">
         @php($nav = [
           ['admin.dashboard', 'Dashboard', 'home', 'admin.dashboard'],

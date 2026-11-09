@@ -71,7 +71,7 @@ class DemoProductSeeder extends Seeder
             $before = Product::where('name', $name)->value('stock_qty');
             $product = Product::updateOrCreate(['name' => $name], [
                 'type' => Product::TYPE_SPARE_PART, 'part_category_id' => $part[$slug] ?? null,
-                'oem_part_number' => $pn, 'sku' => 'SP-'.$pn, 'specification' => $spec, 'connector_type' => $connector,
+                'oem_part_number' => $pn, 'specification' => $spec, 'connector_type' => $connector,
                 'size' => $size, 'price' => $price, 'stock_qty' => $stock, 'warranty' => $warranty,
                 'cost_price' => $price ? round($price * 0.65, -1) : null, 'reorder_level' => 2,
                 'summary' => $spec, 'tag' => 'GENUINE / OEM-GRADE',
