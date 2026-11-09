@@ -10,6 +10,7 @@ use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
@@ -155,7 +156,7 @@ class InventoryPaymentTest extends TestCase
         // Unsigned upload is refused.
         $this->post("/orders/{$order->number}/slip", ['slip' => UploadedFile::fake()->image('slip.jpg')])->assertForbidden();
 
-        $this->post(URL::signedRoute('orders.slip', $order), ['slip' => UploadedFile::fake()->create('slip.pdf', 200, 'application/pdf')])
+        $this->post(URL::signedRoute('orders.slip', $order), ['slip' => $this->pdfUpload()])
             ->assertRedirect();
         $order->refresh();
         $this->assertNotNull($order->payment_slip);
@@ -201,5 +202,159 @@ class InventoryPaymentTest extends TestCase
         $this->assertEquals(500, Setting::read('delivery_fee'));
         $this->assertFalse((bool) Setting::read('payment_pay_at_store_enabled'));
         $this->assertSame(['cod', 'bank_transfer'], Order::enabledPaymentMethods());
+    }
+
+    // ---------------------------------------------------------------- slip security
+
+    /** A small but valid PDF; $extra is injected into the catalog dictionary. */
+    private function pdf(string $extra = '', string $stream = 'BT /F1 12 Tf 20 100 Td (Slip) Tj ET'): string
+    {
+        return "%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R {$extra} >> endobj
+"
+            ."2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+"
+            ."3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >> endobj
+"
+            ."4 0 obj << /Length ".strlen($stream)." >>
+stream
+{$stream}
+endstream endobj
+"
+            ."trailer << /Root 1 0 R >>
+%%EOF
+";
+    }
+
+    private function upload(string $contents, string $name, string $mime): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'slip');
+        file_put_contents($path, $contents);
+
+        return new UploadedFile($path, $name, $mime, null, true);
+    }
+
+    private function pdfUpload(string $extra = '', ?string $stream = null): UploadedFile
+    {
+        return $this->upload($stream === null ? $this->pdf($extra) : $this->pdf($extra, $stream), 'slip.pdf', 'application/pdf');
+    }
+
+    private function pngBytes(int $w = 300, int $h = 200): string
+    {
+        $img = imagecreatetruecolor($w, $h);
+        imagefill($img, 0, 0, imagecolorallocate($img, 200, 220, 255));
+        ob_start();
+        imagepng($img);
+
+        return ob_get_clean();
+    }
+
+    private function bankOrder(): Order
+    {
+        Storage::fake('local');
+        Setting::write(['bank_account_number' => '8001234567']);
+        $this->checkout(['payment_method' => 'bank_transfer']);
+
+        return Order::firstOrFail();
+    }
+
+    private function sendSlip(Order $order, UploadedFile $file)
+    {
+        return $this->post(URL::signedRoute('orders.slip', $order), ['slip' => $file]);
+    }
+
+    public function test_image_slips_are_redrawn_so_hidden_code_is_removed(): void
+    {
+        $order = $this->bankOrder();
+        $polyglot = $this->pngBytes()."<?php system(\$_GET['c']); ?><script>alert(1)</script>";
+
+        $this->sendSlip($order, $this->upload($polyglot, 'slip.png', 'image/png'))->assertSessionHasNoErrors();
+
+        $stored = Storage::disk('local')->get($order->fresh()->payment_slip);
+        $this->assertStringEndsWith('.jpg', $order->fresh()->payment_slip);
+        $this->assertSame(IMAGETYPE_JPEG, getimagesizefromstring($stored)[2]);
+        $this->assertStringNotContainsString('<?php', $stored);
+        $this->assertStringNotContainsString('<script', $stored);
+    }
+
+    public function test_disguised_scripts_and_unsupported_files_are_rejected(): void
+    {
+        $this->withoutMiddleware(ThrottleRequests::class); // many uploads in one test
+        $order = $this->bankOrder();
+        $bad = [
+            ['<?php echo shell_exec($_GET["c"]); ?>', 'slip.jpg', 'image/jpeg'],
+            ['<html><script>alert(1)</script></html>', 'slip.png', 'image/png'],
+            ['<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>', 'slip.png', 'image/png'],
+            ['<?php phpinfo();', 'slip.php', 'application/x-php'],
+            ['GIF89a<?php phpinfo(); ?>', 'slip.gif', 'image/gif'],
+        ];
+        foreach ($bad as [$contents, $name, $mime]) {
+            $this->sendSlip($order, $this->upload($contents, $name, $mime))->assertSessionHasErrors('slip');
+        }
+        $this->assertNull($order->fresh()->payment_slip);
+    }
+
+    public function test_oversized_image_dimensions_are_rejected(): void
+    {
+        $order = $this->bankOrder();
+        $this->sendSlip($order, $this->upload($this->pngBytes(9000, 60), 'slip.png', 'image/png'))->assertSessionHasErrors('slip');
+    }
+
+    public function test_pdf_slips_with_active_content_are_rejected(): void
+    {
+        $this->withoutMiddleware(ThrottleRequests::class); // many uploads in one test
+        $order = $this->bankOrder();
+        $attacks = [
+            $this->pdfUpload('/OpenAction << /S /JavaScript /JS (app.alert(1)) >>'),
+            $this->pdfUpload('/OpenAction << /S /J#61vaScript /J#53 (app.alert(1)) >>'),   // hex-escaped names
+            $this->pdfUpload('/OpenAction << /S /Launch /F (cmd.exe) >>'),
+            $this->pdfUpload('/Names << /EmbeddedFiles 5 0 R >>'),
+            $this->pdfUpload('/Encrypt 6 0 R'),
+            $this->pdfUpload('', gzcompress('<< /S /JavaScript /JS (app.alert(1)) >>')),       // hidden in a compressed stream
+            $this->upload('%PDF-1.4 no end marker', 'slip.pdf', 'application/pdf'),
+        ];
+        foreach ($attacks as $file) {
+            $this->sendSlip($order, $file)->assertSessionHasErrors('slip');
+        }
+        $this->assertNull($order->fresh()->payment_slip);
+
+        // A plain PDF with an ordinary web link is fine.
+        $this->sendSlip($order, $this->pdfUpload('/URI (https://www.boc.lk)'))->assertSessionHasNoErrors();
+        $this->assertStringEndsWith('.pdf', $order->fresh()->payment_slip);
+    }
+
+    public function test_slip_is_locked_once_paid(): void
+    {
+        $order = $this->bankOrder();
+        $order->update(['payment_status' => 'paid']);
+
+        $this->sendSlip($order, $this->pdfUpload())->assertRedirect()->assertSessionHas('error');
+        $this->assertNull($order->fresh()->payment_slip);
+    }
+
+    public function test_admin_slip_view_cannot_run_as_a_page(): void
+    {
+        $order = $this->bankOrder();
+        $this->sendSlip($order, $this->upload($this->pngBytes(), 'slip.png', 'image/png'));
+        $this->actingAs($this->admin);
+
+        $image = $this->get("/admin/orders/{$order->id}/slip")->assertOk();
+        $this->assertSame('nosniff', $image->headers->get('X-Content-Type-Options'));
+        $this->assertStringContainsString('sandbox', $image->headers->get('Content-Security-Policy'));
+        $this->assertSame('image/jpeg', $image->headers->get('Content-Type'));
+        $this->assertStringStartsWith('inline', $image->headers->get('Content-Disposition'));
+
+        $this->sendSlip($order, $this->pdfUpload());
+        $pdf = $this->get("/admin/orders/{$order->id}/slip")->assertOk();
+        $this->assertStringStartsWith('attachment', $pdf->headers->get('Content-Disposition'));
+    }
+
+    public function test_slip_uploads_are_rate_limited(): void
+    {
+        $order = $this->bankOrder();
+        for ($i = 0; $i < 6; $i++) {
+            $this->sendSlip($order, $this->upload('not an image', 'slip.jpg', 'image/jpeg'));
+        }
+        $this->sendSlip($order, $this->pdfUpload())->assertStatus(429);
     }
 }

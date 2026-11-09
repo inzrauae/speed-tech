@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Notifications\ShopNotifier;
 use App\Services\Cart;
 use App\Services\OrderPlacer;
+use App\Services\SlipSanitizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -78,23 +79,31 @@ class CheckoutController extends Controller
     }
 
     /** Customer uploads a bank transfer slip from the confirmation page (signed link). */
-    public function uploadSlip(Request $request, Order $order): RedirectResponse
+    public function uploadSlip(Request $request, Order $order, SlipSanitizer $sanitizer): RedirectResponse
     {
         abort_unless($order->payment_method === 'bank_transfer', 404);
 
+        // Once payment is confirmed (or the order is cancelled) the slip is locked.
+        if ($order->isPaid() || $order->status === 'cancelled') {
+            return redirect()->to(URL::signedRoute('orders.confirmation', $order))
+                ->with('error', 'This order no longer needs a payment slip. Please contact us if something is wrong.');
+        }
+
         $request->validate([
-            'slip' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            // Checks the real file content, not just the name; SlipSanitizer then cleans it.
+            'slip' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'mimetypes:image/jpeg,image/png,image/webp,application/pdf', 'max:5120'],
         ], [
-            'slip.mimes' => 'Please upload a photo (JPG, PNG) or a PDF of the payment slip.',
+            'slip.mimes' => 'Please upload a photo (JPG, PNG, WebP) or a PDF of the payment slip.',
+            'slip.mimetypes' => 'Please upload a photo (JPG, PNG, WebP) or a PDF of the payment slip.',
             'slip.max' => 'The file is too large. Please keep it under 5 MB.',
         ]);
+
+        $path = $sanitizer->store($request->file('slip'));
 
         if ($order->payment_slip) {
             Storage::disk('local')->delete($order->payment_slip);
         }
-        $order->update([
-            'payment_slip' => $request->file('slip')->store('payment-slips', 'local'),
-        ]);
+        $order->update(['payment_slip' => $path]);
         ShopNotifier::slipUploaded($order);
 
         return redirect()->to(URL::signedRoute('orders.confirmation', $order))

@@ -78,6 +78,25 @@ class OrderController extends Controller
     {
         abort_unless($order->payment_slip && Storage::disk('local')->exists($order->payment_slip), 404);
 
-        return Storage::disk('local')->response($order->payment_slip, "payment-slip-{$order->number}.".pathinfo($order->payment_slip, PATHINFO_EXTENSION));
+        // Only cleaned JPEGs open in the browser; PDFs (and any older upload) download instead.
+        // nosniff + a sandboxing CSP stop the browser from ever running the file as a page or script.
+        $extension = strtolower(pathinfo($order->payment_slip, PATHINFO_EXTENSION));
+        $inline = in_array($extension, ['jpg', 'jpeg'], true);
+        $type = match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'pdf' => 'application/pdf',
+            default => 'application/octet-stream',
+        };
+
+        return Storage::disk('local')->response(
+            $order->payment_slip,
+            "payment-slip-{$order->number}.{$extension}",
+            [
+                'Content-Type' => $type,
+                'X-Content-Type-Options' => 'nosniff',
+                'Content-Security-Policy' => "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
+                'Cache-Control' => 'private, no-store',
+            ],
+            $inline ? 'inline' : 'attachment',
+        );
     }
 }
