@@ -1,0 +1,8 @@
+---
+# cPanel → Git Version Control runs this after pulling (triggered by
+# .github/workflows/deploy.yml, or "Deploy HEAD Commit" in cPanel).
+# cPanel has already pulled the code, so deploy.sh skips its own git pull.
+# Log: ~/.cpanel/logs/ (vc_*_git_deploy.log)
+deployment:
+  tasks:
+    - SKIP_PULL=1 /bin/bash ./deploy.sh

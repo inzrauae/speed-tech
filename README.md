@@ -58,34 +58,55 @@ Shop settings are read from `.env` into `config/speedtech.php`:
 
 If `SHOP_NOTIFY_EMAIL` is set, the shop gets an e-mail for each new order and enquiry. This also needs the `MAIL_*` settings.
 
-## Deploying to cPanel
+## Deploying to cPanel (speedtech.lk)
 
-1. Create a MySQL database and user in cPanel.
-2. Upload the project **outside** `public_html`, for example to `~/speedtech`. Run `composer install --no-dev --optimize-autoloader` there, or upload the `vendor/` folder.
-3. Point the domain's document root at `~/speedtech/public`. If you can't change the document root, copy the contents of `public/` into `public_html`, then edit the two paths in `public_html/index.php` so they point to `../speedtech/`.
-4. In `.env`, set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://speedtech.lk`, `DB_CONNECTION=mysql` and the `DB_*` values, `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
-5. Run:
-   ```bash
-   php artisan key:generate
-   php artisan migrate --force
-   php artisan db:seed --class=AdminUserSeeder --force
-   php artisan db:seed --class=CatalogStructureSeeder --force   # brands, models, part types
-   php artisan config:cache && php artisan route:cache && php artisan view:cache
-   ```
-   Run `DemoProductSeeder` only if you want the sample products. **Its prices, stock and part numbers are illustrative.**
-6. Make `storage/`, `bootstrap/cache/` and `public/uploads/` writable.
+The live site is **https://speedtech.lk** on the client's cPanel account `speedtech`. The app is a Git clone in `/home/speedtech/speedtech`, and `public_html` is a link to its `public/` folder. Every push to `main` deploys automatically.
 
-## Updating the live site from GitHub
+```
+VS Code: commit + push to main
+  → GitHub Action (.github/workflows/deploy.yml): runs the tests
+  → cPanel API: Git Version Control pulls main
+  → .cpanel.yml runs deploy.sh: composer install, migrate, rebuild caches
+```
 
-The live site at https://com.inzra.com is a Git clone of this repository in `~/speedtech` on the server. To publish changes:
+If a test fails, nothing is deployed. The server's `.env` and the uploaded images in `public/uploads` are not in Git, so deployments never overwrite them.
 
-1. Commit and push to `main` here.
-2. On the server, in cPanel → Terminal:
-   ```bash
-   cd ~/speedtech && bash deploy.sh
-   ```
+### One-time setup
 
-`deploy.sh` puts the site in maintenance mode, pulls `main`, installs PHP packages, runs database migrations, rebuilds the caches, and brings the site back up. The server's `.env` and the uploaded product images (`public/uploads`) are not in Git, so updates never overwrite them.
+1. **PHP:** cPanel → MultiPHP Manager → set `speedtech.lk` to **PHP 8.2 or newer**.
+2. **Database:** cPanel → MySQL Databases. Database `speedtech_db`, user `speedtech_user`, and add the user to the database with **ALL PRIVILEGES**.
+3. **Clone:** cPanel → Git Version Control → Create.
+   - Clone URL: `https://github.com/inzrauae/speed-tech.git`
+   - Repository Path: `/home/speedtech/speedtech`
+   - Repository Name: `speedtech`
+
+   Do not clone into `public_html`.
+4. **`.env`:** cPanel → File Manager → `/home/speedtech/speedtech` → create a file named `.env` with the production settings. Set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://speedtech.lk`, the `DB_*` values, `ADMIN_EMAIL`/`ADMIN_PASSWORD` and `DEPLOY_PUBLIC_HTML=/home/speedtech/public_html`. Keep this file out of Git.
+5. **First deploy:** cPanel → Git Version Control → Manage → Pull or Deploy → **Deploy HEAD Commit**. On the first run, `deploy.sh`:
+   - generates the app key if it is missing
+   - creates the tables, the admin user, and the brands, models and part types
+   - moves the old `public_html` to `public_html.before-laravel-<date>` and links `public_html` to the app's `public/` folder
+
+   If the site does not load, read the log in `~/.cpanel/logs/`.
+6. **SSL:** cPanel → SSL/TLS Status → Run AutoSSL. The site redirects to `https://speedtech.lk`.
+7. **Auto-deploy from GitHub:**
+   - Create a token in cPanel → Security → Manage API Tokens (name it `github-deploy`).
+   - In GitHub → repo Settings → Secrets and variables → Actions, add these secrets:
+
+     | Secret | Value |
+     |---|---|
+     | `CPANEL_HOST` | `speedtech.lk` |
+     | `CPANEL_USER` | `speedtech` |
+     | `CPANEL_TOKEN` | the token |
+     | `CPANEL_REPO_PATH` | `/home/speedtech/speedtech` |
+
+   After this, each push to `main` goes live. Progress shows in the repo's **Actions** tab.
+
+Run `DemoProductSeeder` only if you want the sample products. **Its prices, stock and part numbers are illustrative.**
+
+### Deploying by hand
+
+If GitHub Actions is down, use cPanel → Git Version Control → **Update from Remote**, then **Deploy HEAD Commit**. If the account has Terminal, you can instead run `cd ~/speedtech && bash deploy.sh`.
 
 ## Not included yet
 

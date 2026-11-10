@@ -1,0 +1,73 @@
+# Push to main → run the tests → tell cPanel to pull and deploy (speedtech.lk).
+#
+# Repository secrets (GitHub → Settings → Secrets and variables → Actions):
+#   CPANEL_HOST       speedtech.lk            (the host you open cPanel on, without :2083)
+#   CPANEL_USER       speedtech
+#   CPANEL_TOKEN      cPanel → Security → Manage API Tokens → Create
+#   CPANEL_REPO_PATH  /home/speedtech/speedtech   (the "Repository Path" in cPanel → Git Version Control)
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, gd, fileinfo
+          coverage: none
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - run: cp .env.example .env && php artisan key:generate
+      - run: php artisan test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and deploy on cPanel
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          CP_USER: ${{ secrets.CPANEL_USER }}
+          TOKEN: ${{ secrets.CPANEL_TOKEN }}
+          REPO: ${{ secrets.CPANEL_REPO_PATH }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HOST" ] || [ -z "$TOKEN" ] || [ -z "$REPO" ]; then
+            echo "::warning::CPANEL_* secrets are not set yet, so nothing was deployed (see README → Deploying to cPanel, step 7)."
+            exit 0
+          fi
+          api() {
+            curl -sS --fail-with-body --max-time 120 \
+              -H "Authorization: cpanel ${CP_USER}:${TOKEN}" \
+              "https://${HOST}:2083/execute/$1" "${@:2}"
+          }
+          check() { jq -e '.status == 1' >/dev/null <<<"$1" || { echo "cPanel error: $(jq -c '.errors' <<<"$1")"; exit 1; }; }
+
+          echo "Pulling main into ${REPO}"
+          out=$(api VersionControl/update --get --data-urlencode "repository_root=${REPO}" --data-urlencode "branch=main")
+          check "$out"
+          jq -r '.data.last_update.identifier // empty | "Now at commit \(.)"' <<<"$out"
+
+          echo "Starting deployment (.cpanel.yml)"
+          out=$(api VersionControlDeployment/create --get --data-urlencode "repository_root=${REPO}")
+          check "$out"
+          id=$(jq -r '.data.deploy_id' <<<"$out")
+
+          for i in $(seq 1 60); do
+            sleep 10
+            d=$(api VersionControlDeployment/retrieve | jq -c --arg id "$id" '.data[] | select((.deploy_id|tostring) == $id)')
+            if jq -e '.timestamps.succeeded' >/dev/null <<<"$d"; then echo "Deployed. https://${HOST}"; exit 0; fi
+            if jq -e '.timestamps.failed'    >/dev/null <<<"$d"; then echo "Deployment FAILED. See $(jq -r '.log_path' <<<"$d") in cPanel File Manager."; exit 1; fi
+          done
+          echo "Deployment still running after 10 minutes. Check ~/.cpanel/logs in cPanel."
+          exit 1
