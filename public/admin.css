@@ -172,3 +172,13 @@ details.adjust[open] summary{background:var(--dark);color:#fff;border-color:var(
 .pay-toggle b{display:block;font-size:14px}
 .pay-toggle small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
 .settings-form{max-width:860px}
+
+/* AI product writer */
+.alert.ai-note{background:#fff8e8;border-color:#e0a100}
+.alert.ai-note .warn{color:var(--red-dark)}
+.ai-tool{display:flex;gap:8px;margin-top:12px}
+.ai-tool input{flex:1;min-width:0;height:32px;border:1px solid #d9dae0;border-radius:6px;padding:0 10px;font-size:12px}
+.ai-image{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.ai-image summary{cursor:pointer;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+.ai-image .field{margin-top:10px}
+.mini-move .thumb{width:44px;height:44px;object-fit:contain;background:var(--surface);border-radius:4px;flex:none}

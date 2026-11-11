@@ -27,7 +27,7 @@ class Product extends Model
 
     protected $fillable = [
         'type', 'category_id', 'part_category_id', 'name', 'slug', 'sku', 'oem_part_number',
-        'tag', 'summary', 'description', 'specification', 'connector_type', 'size',
+        'tag', 'summary', 'description', 'meta_title', 'meta_description', 'specification', 'connector_type', 'size',
         'price', 'compare_at_price', 'cost_price', 'stock_qty', 'reorder_level', 'warranty', 'image', 'is_featured', 'is_active',
     ];
 
@@ -49,6 +49,7 @@ class Product extends Model
             'reorder_level' => 'integer',
             'is_featured' => 'boolean',
             'is_active' => 'boolean',
+            'ai_draft' => 'boolean',
         ];
     }
 

@@ -19,6 +19,7 @@
           ['admin.orders.index', 'Orders', 'cart', 'admin.orders.*'],
           ['admin.enquiries.index', 'Enquiries & repairs', 'mail', 'admin.enquiries.*'],
           ['admin.products.index', 'Products', 'box', 'admin.products.*'],
+          ['admin.ai.create', 'AI product writer', 'bolt', 'admin.ai.*'],
           ['admin.inventory.index', 'Inventory', 'storage', 'admin.inventory.*'],
           ['admin.settings', 'Payments & delivery', 'tag', 'admin.settings*'],
         ])

@@ -1,4 +1,4 @@
-@extends('layouts.app', ['title' => $product->name, 'description' => $product->summary ?: Str::limit(strip_tags((string) $product->description), 155)])
+@extends('layouts.app', ['title' => $product->meta_title ? Str::before($product->meta_title, ' | ') : $product->name, 'description' => $product->meta_description ?: ($product->summary ?: Str::limit(strip_tags((string) $product->description), 155))])
 
 @section('content')
   <div class="wrap page-head">

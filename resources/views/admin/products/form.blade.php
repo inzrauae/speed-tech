@@ -9,6 +9,21 @@
 
 @section('content')
   @php($type = old('type', $product->type))
+  @php($aiReport = session('ai_report'))
+  @if ($product->ai_draft || $aiReport)
+    <div class="alert ai-note" role="status">
+      <b>AI draft — please review before publishing.</b> Check the name, specs and compatibility, add the price and stock, then tick “Visible in the store” and save.
+      @if ($aiReport)
+        <ul>
+          @foreach ($aiReport['created'] as $item)<li>Created new {{ $item }}.</li>@endforeach
+          @if ($aiReport['brand'])<li>Brand detected: {{ $aiReport['brand'] }}.</li>@endif
+          @if ($aiReport['notes'])<li>AI note: {{ $aiReport['notes'] }}</li>@endif
+          @foreach ($aiReport['warnings'] as $warning)<li class="warn">{{ $warning }}</li>@endforeach
+        </ul>
+      @endif
+    </div>
+  @endif
+
   <form method="post" enctype="multipart/form-data" action="{{ $product->exists ? route('admin.products.update', $product) : route('admin.products.store') }}" id="productForm">
     @csrf
     @if ($product->exists) @method('PUT') @endif
@@ -36,7 +51,21 @@
             </label>
             <label class="field">Card label <small>(e.g. GENUINE / OEM-GRADE)</small><input name="tag" value="{{ old('tag', $product->tag) }}" maxlength="40"></label>
             <label class="field span-2">Short summary <small>(shown on product cards)</small><input name="summary" value="{{ old('summary', $product->summary) }}" maxlength="500"></label>
-            <label class="field span-2">Description<textarea name="description" rows="5" maxlength="10000">{{ old('description', $product->description) }}</textarea></label>
+            <label class="field span-2">Description<textarea name="description" rows="{{ $product->ai_draft ? 12 : 5 }}" maxlength="10000">{{ old('description', $product->description) }}</textarea></label>
+          </div>
+          @if ($product->exists)
+            <div class="ai-tool">
+              <input name="notes" form="aiTextForm" maxlength="1500" placeholder="Optional: what to add or change, e.g. mention it is backlit">
+              <button class="btn sm" type="submit" form="aiTextForm"><svg class="icon"><use href="#icon-bolt"/></svg>Rewrite with AI</button>
+            </div>
+          @endif
+        </section>
+
+        <section class="card">
+          <h2>Search engines (SEO) <small>Shown in Google results. Blank = name and summary.</small></h2>
+          <div class="form-grid" style="grid-template-columns:1fr">
+            <label class="field">Meta title <small>(about 60 characters) <span data-count="meta_title"></span></small><input name="meta_title" value="{{ old('meta_title', $product->meta_title) }}" maxlength="120"></label>
+            <label class="field">Meta description <small>(about 155 characters) <span data-count="meta_description"></span></small><textarea name="meta_description" rows="2" maxlength="300">{{ old('meta_description', $product->meta_description) }}</textarea></label>
           </div>
         </section>
 
@@ -124,6 +153,15 @@
           <img class="image-preview" src="{{ $product->imageUrl() }}" alt="" id="imagePreview">
           <label class="field">Upload JPG, PNG or WebP (max 4 MB)<input type="file" name="image" accept="image/jpeg,image/png,image/webp" id="imageInput"></label>
           @if ($product->image)<label class="check" style="margin-top:10px"><input type="checkbox" name="remove_image" value="1"> Remove current image</label>@endif
+          @if ($product->exists)
+            <details class="ai-image" @if ($product->ai_draft) open @endif>
+              <summary><svg class="icon"><use href="#icon-bolt"/></svg>New AI image with logo</summary>
+              <label class="field">Image details <small>(optional)</small><textarea name="image_details" form="aiImageForm" rows="3" maxlength="1500" placeholder="e.g. Top view, backlight on, dark grey background"></textarea></label>
+              <label class="field">Reference photo <small>(optional)</small><input type="file" name="photo" form="aiImageForm" accept="image/jpeg,image/png,image/webp"></label>
+              @if ($product->image)<label class="check"><input type="checkbox" name="use_current" value="1" form="aiImageForm" checked> Use the current image as reference</label>@endif
+              <button class="btn sm" type="submit" form="aiImageForm" style="margin-top:10px">Generate image</button>
+            </details>
+          @endif
         </section>
 
         <div class="form-actions">
@@ -135,6 +173,10 @@
   </form>
 
   @if ($product->exists)
+    {{-- Targets of the AI buttons above (inputs use form="…" because forms cannot nest). --}}
+    <form method="post" action="{{ route('admin.ai.text', $product) }}" id="aiTextForm" class="js-ai" data-confirm="Replace the summary, description and SEO text with a new AI version? Unsaved changes on this page will be lost.">@csrf</form>
+    <form method="post" action="{{ route('admin.ai.image', $product) }}" id="aiImageForm" class="js-ai" enctype="multipart/form-data" data-confirm="Create a new AI image? It replaces the current image. Unsaved changes on this page will be lost.">@csrf</form>
+
     <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm="Delete “{{ $product->name }}” permanently? Past orders keep their copy of the name and price." style="margin-top:24px">
       @csrf @method('DELETE')
       <button class="btn danger" type="submit"><svg class="icon"><use href="#icon-trash"/></svg>Delete product</button>
@@ -166,6 +208,19 @@
         d.querySelectorAll('.model').forEach(m => { m.hidden = term && !m.dataset.search.includes(term) && !d.querySelector('summary').textContent.toLowerCase().includes(term); });
         if (term && brandMatch) d.open = true;
       });
+    });
+
+    form.querySelectorAll('[data-count]').forEach(counter => {
+      const input = form.querySelector(`[name="${counter.dataset.count}"]`);
+      const show = () => { counter.textContent = `· ${input.value.length} now`; };
+      input.addEventListener('input', show); show();
+    });
+
+    // Registered after the layout's confirm handler, so this only runs once confirmed.
+    document.addEventListener('submit', e => {
+      const f = e.target;
+      if (e.defaultPrevented || !f.classList.contains('js-ai')) return;
+      document.querySelectorAll(`[form="${f.id}"][type="submit"]`).forEach(b => { b.disabled = true; b.lastChild.textContent = ' Working… (up to a minute)'; });
     });
 
     document.getElementById('imageInput')?.addEventListener('change', e => {

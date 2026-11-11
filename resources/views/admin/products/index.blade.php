@@ -1,6 +1,7 @@
 @extends('admin.layout', ['title' => 'Products'])
 
 @section('actions')
+  <a class="btn" href="{{ route('admin.ai.create') }}"><svg class="icon"><use href="#icon-bolt"/></svg>AI writer</a>
   <a class="btn primary" href="{{ route('admin.products.create', ['type' => 'spare_part']) }}"><svg class="icon"><use href="#icon-plus"/></svg>Add spare part</a>
   <a class="btn" href="{{ route('admin.products.create', ['type' => 'accessory']) }}"><svg class="icon"><use href="#icon-plus"/></svg>Add accessory</a>
 @endsection
@@ -10,7 +11,7 @@
     <input type="search" name="q" value="{{ request('q') }}" placeholder="Search name, SKU, OEM part number…">
     <select name="type" data-autosubmit><option value="">All types</option>@foreach (\App\Models\Product::TYPES as $key => $label)<option value="{{ $key }}" @selected(request('type') === $key)>{{ $label }}</option>@endforeach</select>
     <select name="stock" data-autosubmit><option value="">Any stock</option><option value="low" @selected(request('stock') === 'low')>Low stock</option><option value="out" @selected(request('stock') === 'out')>Out of stock</option></select>
-    <select name="status" data-autosubmit><option value="">Any visibility</option><option value="hidden" @selected(request('status') === 'hidden')>Hidden only</option></select>
+    <select name="status" data-autosubmit><option value="">Any visibility</option><option value="hidden" @selected(request('status') === 'hidden')>Hidden only</option><option value="ai" @selected(request('status') === 'ai')>AI drafts to review</option></select>
     <button class="btn" type="submit">Filter</button>
   </form>
 
@@ -25,7 +26,7 @@
           <td>{{ $product->isSparePart() ? $product->generations_count.' '.Str::plural('model year', $product->generations_count) : '—' }}</td>
           <td class="num">{{ $product->priceLabel() }}</td>
           <td class="num"><span class="badge {{ $product->stockState() }}">{{ $product->stock_qty }}</span></td>
-          <td>@if ($product->is_active)<span class="badge in">Visible</span>@else<span class="badge muted">Hidden</span>@endif @if ($product->is_featured)<span class="badge">Featured</span>@endif</td>
+          <td>@if ($product->is_active)<span class="badge in">Visible</span>@else<span class="badge muted">Hidden</span>@endif @if ($product->ai_draft)<span class="badge pending">AI draft</span>@endif @if ($product->is_featured)<span class="badge">Featured</span>@endif</td>
         </tr>
       @empty
         <tr><td colspan="7" class="empty-row">No products match.</td></tr>

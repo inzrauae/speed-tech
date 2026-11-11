@@ -27,6 +27,7 @@ class ProductController extends Controller
             ->when($request->query('stock') === 'out', fn ($q) => $q->where('stock_qty', 0))
             ->when($request->query('stock') === 'low', fn ($q) => $q->whereBetween('stock_qty', [1, Product::LOW_STOCK]))
             ->when($request->query('status') === 'hidden', fn ($q) => $q->where('is_active', false))
+            ->when($request->query('status') === 'ai', fn ($q) => $q->where('ai_draft', true))
             ->latest('updated_at')
             ->paginate(25)->withQueryString();
 
@@ -93,6 +94,8 @@ class ProductController extends Controller
             'tag' => ['nullable', 'string', 'max:40'],
             'summary' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string', 'max:10000'],
+            'meta_title' => ['nullable', 'string', 'max:120'],
+            'meta_description' => ['nullable', 'string', 'max:300'],
             'specification' => ['nullable', 'string', 'max:255'],
             'connector_type' => ['nullable', 'string', 'max:255'],
             'size' => ['nullable', 'string', 'max:255'],
@@ -122,6 +125,9 @@ class ProductController extends Controller
         $isNew = ! $product->exists;
         $product->is_featured = $request->boolean('is_featured');
         $product->is_active = $request->boolean('is_active');
+        if ($product->is_active) {
+            $product->ai_draft = false; // reviewed and published
+        }
         $product->category_id = $isPart ? null : $data['category_id'];
         $product->part_category_id = $isPart ? $data['part_category_id'] : null;
         if (blank($data['slug'] ?? null) && ! $product->exists) {
@@ -153,8 +159,13 @@ class ProductController extends Controller
         }
     }
 
-    /** Only removes files this admin uploaded, never the bundled theme assets. */
     private function deleteImage(?string $path): void
+    {
+        self::deleteUploadedImage($path);
+    }
+
+    /** Only removes files this admin uploaded, never the bundled theme assets. */
+    public static function deleteUploadedImage(?string $path): void
     {
         if ($path && str_starts_with($path, self::UPLOAD_DIR.'/')) {
             File::delete(public_path($path));
