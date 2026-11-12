@@ -56,9 +56,9 @@ class AiProductController extends Controller
         $product = DB::transaction(function () use ($draft, &$taxonomy) {
             $taxonomy = $this->writer->resolveTaxonomy($draft);
             $product = Product::create(collect($draft)->only([
-                'type', 'name', 'summary', 'description', 'meta_title', 'meta_description',
-                'specification', 'size', 'connector_type', 'tag',
-            ])->map(fn ($v) => $v === '' ? null : $v)->all() + [
+                'type', 'name', 'brand', 'summary', 'description', 'faqs', 'meta_title', 'meta_description',
+                'focus_keyword', 'image_alt', 'specification', 'size', 'connector_type', 'tag',
+            ])->map(fn ($v) => $v === '' || $v === [] ? null : $v)->all() + [
                 'category_id' => $taxonomy['category_id'],
                 'part_category_id' => $taxonomy['part_category_id'],
                 'stock_qty' => 0,
@@ -141,15 +141,16 @@ class AiProductController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        $product->fill(collect($draft)->only(['summary', 'description', 'meta_title', 'meta_description'])->all());
-        foreach (['specification', 'size', 'connector_type', 'tag'] as $field) {
+        $product->fill(collect($draft)->only(['summary', 'description', 'meta_title', 'meta_description', 'focus_keyword', 'image_alt'])->all());
+        $product->faqs = $draft['faqs'] ?: null;
+        foreach (['brand', 'specification', 'size', 'connector_type', 'tag'] as $field) {
             if (blank($product->{$field}) && filled($draft[$field])) {
                 $product->{$field} = $draft[$field];
             }
         }
         $product->save();
 
-        return back()->with('status', 'Description and SEO text rewritten. Review them, then save.'.($draft['review_notes'] ? ' AI note: '.$draft['review_notes'] : ''));
+        return back()->with('status', 'Description, FAQs and SEO text rewritten. Review them, then save.'.($draft['review_notes'] ? ' AI note: '.$draft['review_notes'] : ''));
     }
 
     private function photo(?UploadedFile $file): ?array

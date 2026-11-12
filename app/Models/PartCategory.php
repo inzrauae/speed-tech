@@ -12,7 +12,7 @@ class PartCategory extends Model
 {
     use HasSlug;
 
-    protected $fillable = ['name', 'slug', 'sku_prefix', 'icon', 'sort_order', 'is_active'];
+    protected $fillable = ['name', 'slug', 'sku_prefix', 'icon', 'sort_order', 'is_active', 'pending_approval'];
 
     protected static function booted(): void
     {
@@ -25,7 +25,7 @@ class PartCategory extends Model
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean', 'sort_order' => 'integer'];
+        return ['is_active' => 'boolean', 'pending_approval' => 'boolean', 'sort_order' => 'integer'];
     }
 
     public function products(): HasMany

@@ -1,4 +1,34 @@
-@extends('layouts.app', ['title' => $product->meta_title ? Str::before($product->meta_title, ' | ') : $product->name, 'description' => $product->meta_description ?: ($product->summary ?: Str::limit(strip_tags((string) $product->description), 155))])
+@extends('layouts.app', ['title' => $product->meta_title ? Str::before($product->meta_title, ' | ') : $product->name, 'description' => $product->seoDescription()])
+
+@push('head')
+  @php($pageTitle = ($product->meta_title ? Str::before($product->meta_title, ' | ') : $product->name).' | '.config('speedtech.name'))
+  <link rel="canonical" href="{{ $product->url() }}">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta property="og:type" content="product">
+  <meta property="og:site_name" content="{{ config('speedtech.name') }}">
+  <meta property="og:locale" content="en_LK">
+  <meta property="og:title" content="{{ $pageTitle }}">
+  <meta property="og:description" content="{{ $product->seoDescription() }}">
+  <meta property="og:url" content="{{ $product->url() }}">
+  <meta property="og:image" content="{{ $product->imageUrl() }}">
+  <meta property="og:image:alt" content="{{ $product->imageAlt() }}">
+  @if ($product->price !== null)
+    <meta property="product:price:amount" content="{{ number_format((float) $product->price, 2, '.', '') }}">
+    <meta property="product:price:currency" content="LKR">
+  @endif
+  <meta property="product:availability" content="{{ $product->stock_qty > 0 ? 'in stock' : 'available for order' }}">
+  <meta property="product:condition" content="new">
+  @if ($product->brand)<meta property="product:brand" content="{{ $product->brand }}">@endif
+  @if ($product->sku)<meta property="product:retailer_item_id" content="{{ $product->sku }}">@endif
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ $pageTitle }}">
+  <meta name="twitter:description" content="{{ $product->seoDescription() }}">
+  <meta name="twitter:image" content="{{ $product->imageUrl() }}">
+  <meta name="twitter:image:alt" content="{{ $product->imageAlt() }}">
+  @foreach ($product->structuredData($compatibility) as $graph)
+    <script type="application/ld+json">{!! json_encode($graph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
+  @endforeach
+@endpush
 
 @section('content')
   <div class="wrap page-head">
@@ -16,7 +46,7 @@
   </div>
 
   <section class="wrap product-page">
-    <div class="product-gallery"><img src="{{ $product->imageUrl() }}" alt="{{ $product->name }}" width="640" height="480"></div>
+    <div class="product-gallery"><img src="{{ $product->imageUrl() }}" alt="{{ $product->imageAlt() }}" width="640" height="480"></div>
 
     <div class="product-summary">
       <div class="eyebrow brand-text">{{ strtoupper($product->groupLabel()) }}</div>
@@ -64,7 +94,15 @@
 
   <section class="wrap product-details">
     @if ($product->description)
-      <div class="detail-block"><h2>Details</h2><p>{!! nl2br(e($product->description)) !!}</p></div>
+      <div class="detail-block rich-text"><h2>Details</h2>{{ $product->descriptionHtml() }}</div>
+    @endif
+    @if ($faqs = $product->faqList())
+      <div class="detail-block faq-block">
+        <h2>Frequently asked questions</h2>
+        @foreach ($faqs as $faq)
+          <details @if ($loop->first) open @endif><summary>{{ $faq['q'] }}</summary><p>{{ $faq['a'] }}</p></details>
+        @endforeach
+      </div>
     @endif
     @if ($compatibility->isNotEmpty())
       <div class="detail-block">

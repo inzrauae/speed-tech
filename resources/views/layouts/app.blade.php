@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="{{ asset('style.css') }}?v={{ filemtime(public_path('style.css')) }}">
   <link rel="stylesheet" href="{{ asset('shop.css') }}?v={{ filemtime(public_path('shop.css')) }}">
   <link rel="stylesheet" href="{{ asset('pages.css') }}?v={{ filemtime(public_path('pages.css')) }}">
+  @stack('head')
 </head>
 <body>
   @include('partials.icons')

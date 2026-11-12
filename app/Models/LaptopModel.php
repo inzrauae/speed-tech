@@ -12,11 +12,11 @@ class LaptopModel extends Model
 {
     use HasSlug;
 
-    protected $fillable = ['brand_id', 'name', 'slug', 'is_active'];
+    protected $fillable = ['brand_id', 'name', 'slug', 'is_active', 'pending_approval'];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_active' => 'boolean', 'pending_approval' => 'boolean'];
     }
 
     public function brand(): BelongsTo

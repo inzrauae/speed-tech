@@ -51,7 +51,93 @@ class AiProductTest extends TestCase
             'compatible' => [['brand' => 'Dell', 'model' => 'Inspiron 15 3520', 'years' => '2022-2023']],
             'image_prompt' => 'A black laptop keyboard',
             'review_notes' => 'Check the ribbon cable.',
+            'focus_keyword' => 'Dell Inspiron 15 3520 keyboard',
+            'image_alt' => 'Black backlit US keyboard for the Dell Inspiron 15 3520 laptop',
+            'faqs' => [['q' => 'Will it fit my 3520?', 'a' => 'Yes, match the part number first.'], ['q' => '', 'a' => 'dropped']],
         ];
+    }
+
+    public function test_new_taxonomy_from_the_ai_waits_for_approval_and_is_hidden(): void
+    {
+        $this->fakeGemini($this->draft());
+        $this->post('/admin/products/ai-writer', ['title' => 'dell 3520 keyboard', 'image_mode' => 'none']);
+
+        $brand = Brand::where('name', 'Dell')->sole();
+        $model = LaptopModel::where('name', 'Inspiron 15 3520')->sole();
+        $year = $model->generations()->sole();
+        $part = PartCategory::where('name', 'Keyboard')->sole();
+        foreach ([$brand, $model, $part] as $item) {
+            $this->assertTrue($item->pending_approval);
+            $this->assertFalse($item->is_active);
+        }
+        $this->assertTrue($year->pending_approval);
+
+        // Hidden from the public finder.
+        $this->getJson('/api/finder/brands')->assertJsonMissing(['name' => 'Dell']);
+        $this->getJson('/api/finder/generations?model='.$model->id)->assertExactJson([]);
+
+        $this->get(route('admin.approvals.index'))->assertOk()
+            ->assertSee('New laptop brands')->assertSee('New laptop models')->assertSee('New years / generations')->assertSee('New part types');
+
+        // Approving the year (renamed) also approves its model and brand.
+        $this->post(route('admin.approvals.approve', ['years', $year->id]), ['label' => '2022–2024'])->assertSessionHasNoErrors();
+        $this->assertSame('2022–2024', $year->refresh()->label);
+        $this->assertFalse($year->pending_approval);
+        $this->assertTrue($model->refresh()->is_active && ! $model->pending_approval);
+        $this->assertTrue($brand->refresh()->is_active && ! $brand->pending_approval);
+        $this->getJson('/api/finder/generations?model='.$model->id)->assertJsonFragment(['label' => '2022–2024']);
+    }
+
+    public function test_a_suggestion_can_be_replaced_with_an_existing_entry_or_rejected(): void
+    {
+        $existing = PartCategory::create(['name' => 'Keyboards', 'is_active' => true]);
+        $this->fakeGemini($this->draft(['category' => 'Laptop Keyboard', 'compatible' => [['brand' => 'Dull', 'model' => 'X1', 'years' => '']]]));
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $product = Product::sole();
+        $suggested = PartCategory::where('name', 'Laptop Keyboard')->sole();
+
+        $this->post(route('admin.approvals.replace', ['part-types', $suggested->id]), ['replace_with' => $existing->id])->assertSessionHasNoErrors();
+        $this->assertModelMissing($suggested);
+        $this->assertSame($existing->id, $product->refresh()->part_category_id);
+
+        $brand = Brand::where('name', 'Dull')->sole();
+        $this->delete(route('admin.approvals.reject', ['brands', $brand->id]))->assertSessionHasNoErrors();
+        $this->assertModelMissing($brand);
+        $this->assertSame(0, LaptopModel::where('name', 'X1')->count());
+        $this->assertCount(0, $product->generations()->get());
+        $this->assertSame(0, \App\Http\Controllers\Admin\ApprovalController::pendingCount());
+    }
+
+    public function test_draft_gets_seo_fields_and_the_page_outputs_structured_data(): void
+    {
+        $this->fakeGemini($this->draft(['description' => "Intro text.\n\n## Key features\n\n• Backlit\n• US layout", 'meta_title' => 'Dell 3520 Keyboard | SpeedTech']));
+        $this->post('/admin/products/ai-writer', ['title' => 'dell 3520 keyboard', 'image_mode' => 'none']);
+
+        $product = Product::sole();
+        $this->assertSame('Dell', $product->brand);
+        $this->assertSame('Dell Inspiron 15 3520 keyboard', $product->focus_keyword);
+        $this->assertSame('Dell 3520 Keyboard', $product->meta_title);
+        $this->assertSame([['q' => 'Will it fit my 3520?', 'a' => 'Yes, match the part number first.']], $product->faqs);
+
+        $product->forceFill(['is_active' => true, 'price' => 12500, 'stock_qty' => 2])->save();
+        $html = $this->get($product->url())->assertOk()
+            ->assertSee('<link rel="canonical" href="'.$product->url().'">', false)
+            ->assertSee('<meta property="og:type" content="product">', false)
+            ->assertSee('<h3>Key features</h3>', false)
+            ->assertSee('<li>Backlit</li>', false)
+            ->assertSee('Will it fit my 3520?')
+            ->assertSee('alt="Black backlit US keyboard', false)
+            ->getContent();
+
+        preg_match_all('#<script type="application/ld\+json">(.*?)</script>#s', $html, $m);
+        $graphs = collect($m[1])->map(fn ($j) => json_decode($j, true))->keyBy('@type');
+        $this->assertSame(['Product', 'BreadcrumbList', 'FAQPage'], $graphs->keys()->all());
+        $this->assertSame('12500.00', $graphs['Product']['offers']['price']);
+        $this->assertSame('LKR', $graphs['Product']['offers']['priceCurrency']);
+        $this->assertSame('https://schema.org/InStock', $graphs['Product']['offers']['availability']);
+        $this->assertSame('Dell', $graphs['Product']['brand']['name']);
+        $this->assertSame('Dell Inspiron 15 3520', $graphs['Product']['isAccessoryOrSparePartFor'][0]['name']);
+        $this->assertCount(4, $graphs['BreadcrumbList']['itemListElement']);
     }
 
     private function fakeGemini(array $draft, bool $imageWorks = true): void
@@ -156,12 +242,18 @@ class AiProductTest extends TestCase
         $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
         $product = Product::sole();
 
-        $this->get(route('admin.products.edit', $product))->assertOk()->assertSee('AI draft')->assertSee('Rewrite with AI');
+        $this->get(route('admin.products.edit', $product))->assertOk()->assertSee('AI draft')->assertSee('Rewrite with AI')->assertSee('(pending approval)');
 
-        $this->put(route('admin.products.update', $product), [
+        $publish = [
             'type' => 'spare_part', 'name' => $product->name, 'part_category_id' => $product->part_category_id,
             'stock_qty' => 2, 'is_active' => 1, 'meta_title' => 'Custom title', 'meta_description' => 'Custom meta description',
-        ])->assertSessionHasNoErrors();
+        ];
+        // The AI-suggested part type must be approved before the product can go live.
+        $this->put(route('admin.products.update', $product), $publish)->assertSessionHasErrors('is_active');
+        $this->assertFalse($product->refresh()->is_active);
+
+        $this->post(route('admin.approvals.approve', ['part-types', $product->part_category_id]), ['name' => 'Keyboards'])->assertSessionHasNoErrors();
+        $this->put(route('admin.products.update', $product), $publish)->assertSessionHasNoErrors();
 
         $product->refresh();
         $this->assertFalse($product->ai_draft);

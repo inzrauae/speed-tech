@@ -87,7 +87,7 @@ class LaptopModelController extends Controller
 
     public function updateGeneration(Request $request, ModelGeneration $generation): RedirectResponse
     {
-        $generation->update($this->validatedGeneration($request));
+        $generation->update($this->validatedGeneration($request) + ['pending_approval' => false]);
 
         return back()->with('status', 'Year / generation saved.');
     }
@@ -106,6 +106,9 @@ class LaptopModelController extends Controller
             'name' => ['required', 'string', 'max:150'],
         ]);
         $data['is_active'] = $request->boolean('is_active');
+        if ($data['is_active']) {
+            $data['pending_approval'] = false; // an admin publishing it approves an AI suggestion
+        }
         if ($model && (int) $data['brand_id'] !== $model->brand_id) {
             $data['slug'] = null; // regenerate within the new brand
         }

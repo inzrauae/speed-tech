@@ -15,7 +15,7 @@
       <b>AI draft — please review before publishing.</b> Check the name, specs and compatibility, add the price and stock, then tick “Visible in the store” and save.
       @if ($aiReport)
         <ul>
-          @foreach ($aiReport['created'] as $item)<li>Created new {{ $item }}.</li>@endforeach
+          @foreach ($aiReport['created'] as $item)<li>Suggested new {{ $item }} — <a class="link" href="{{ route('admin.approvals.index') }}">waiting for your approval</a>.</li>@endforeach
           @if ($aiReport['brand'])<li>Brand detected: {{ $aiReport['brand'] }}.</li>@endif
           @if ($aiReport['notes'])<li>AI note: {{ $aiReport['notes'] }}</li>@endif
           @foreach ($aiReport['warnings'] as $warning)<li class="warn">{{ $warning }}</li>@endforeach
@@ -44,14 +44,25 @@
           <div class="form-grid">
             <label class="field span-2">Name<input name="name" value="{{ old('name', $product->name) }}" required maxlength="200"></label>
             <label class="field" data-for="spare_part">Part type (finder step 4)
-              <select name="part_category_id"><option value="">Choose…</option>@foreach ($partCategories as $c)<option value="{{ $c->id }}" @selected(old('part_category_id', $product->part_category_id) == $c->id)>{{ $c->name }}</option>@endforeach</select>
+              <select name="part_category_id"><option value="">Choose…</option>@foreach ($partCategories as $c)<option value="{{ $c->id }}" @selected(old('part_category_id', $product->part_category_id) == $c->id)>{{ $c->name }}{{ $c->pending_approval ? " (pending approval)" : "" }}</option>@endforeach</select>
             </label>
             <label class="field" data-for="accessory">Shop category
-              <select name="category_id"><option value="">Choose…</option>@foreach ($categories as $c)<option value="{{ $c->id }}" @selected(old('category_id', $product->category_id) == $c->id)>{{ $c->name }}</option>@endforeach</select>
+              <select name="category_id"><option value="">Choose…</option>@foreach ($categories as $c)<option value="{{ $c->id }}" @selected(old('category_id', $product->category_id) == $c->id)>{{ $c->name }}{{ $c->pending_approval ? " (pending approval)" : "" }}</option>@endforeach</select>
             </label>
             <label class="field">Card label <small>(e.g. GENUINE / OEM-GRADE)</small><input name="tag" value="{{ old('tag', $product->tag) }}" maxlength="40"></label>
+            <label class="field">Brand <small>(manufacturer, for Google)</small><input name="brand" value="{{ old('brand', $product->brand) }}" maxlength="60" placeholder="Dell"></label>
             <label class="field span-2">Short summary <small>(shown on product cards)</small><input name="summary" value="{{ old('summary', $product->summary) }}" maxlength="500"></label>
-            <label class="field span-2">Description<textarea name="description" rows="{{ $product->ai_draft ? 12 : 5 }}" maxlength="10000">{{ old('description', $product->description) }}</textarea></label>
+            <label class="field span-2">Description <small>Blank line = new paragraph · “## ” starts a sub-heading · “• ” starts a bullet</small><textarea name="description" rows="{{ $product->ai_draft ? 16 : 8 }}" maxlength="10000">{{ old('description', $product->description) }}</textarea></label>
+          </div>
+          @php($faqRows = array_pad(array_slice(old('faqs', $product->faqs ?? []), 0, 8), max(5, count(old('faqs', $product->faqs ?? [])) + 1), ['q' => '', 'a' => '']))
+          <h3 style="margin:18px 0 8px;font-size:14px">FAQs <small style="font-weight:normal;color:#666">Shown on the product page. Leave a row blank to skip it.</small></h3>
+          <div class="form-grid" style="grid-template-columns:1fr">
+            @foreach (array_slice($faqRows, 0, 8) as $i => $faq)
+              <div class="form-grid" style="grid-template-columns:1fr 2fr;gap:8px">
+                <input name="faqs[{{ $i }}][q]" value="{{ $faq['q'] ?? '' }}" maxlength="200" placeholder="Question {{ $i + 1 }}" aria-label="FAQ question {{ $i + 1 }}">
+                <textarea name="faqs[{{ $i }}][a]" rows="2" maxlength="600" placeholder="Answer" aria-label="FAQ answer {{ $i + 1 }}">{{ $faq['a'] ?? '' }}</textarea>
+              </div>
+            @endforeach
           </div>
           @if ($product->exists)
             <div class="ai-tool">
@@ -66,7 +77,10 @@
           <div class="form-grid" style="grid-template-columns:1fr">
             <label class="field">Meta title <small>(about 60 characters) <span data-count="meta_title"></span></small><input name="meta_title" value="{{ old('meta_title', $product->meta_title) }}" maxlength="120"></label>
             <label class="field">Meta description <small>(about 155 characters) <span data-count="meta_description"></span></small><textarea name="meta_description" rows="2" maxlength="300">{{ old('meta_description', $product->meta_description) }}</textarea></label>
+            <label class="field">Focus keyword <small>(the main search phrase the text targets, for your reference)</small><input name="focus_keyword" value="{{ old('focus_keyword', $product->focus_keyword) }}" maxlength="100" placeholder="Dell Inspiron 15 3520 keyboard"></label>
+            <label class="field">Image alt text <small>(describes the photo for Google Images and screen readers)</small><input name="image_alt" value="{{ old('image_alt', $product->image_alt) }}" maxlength="200"></label>
           </div>
+          <p style="font-size:12px;color:#666;margin-top:8px">Product, price, stock, breadcrumb and FAQ structured data (schema.org) and social sharing tags are added to the product page automatically from these fields.</p>
         </section>
 
         <section class="card">
@@ -89,13 +103,13 @@
             @foreach ($brands as $brand)
               @php($brandSelected = $brand->laptopModels->flatMap->generations->whereIn('id', $selectedGenerations)->count())
               <details @if ($brandSelected) open @endif data-search="{{ Str::lower($brand->name.' '.$brand->laptopModels->pluck('name')->implode(' ')) }}">
-                <summary>{{ $brand->name }} <small>{{ $brandSelected ? $brandSelected.' selected' : $brand->laptopModels->count().' models' }}</small></summary>
+                <summary>{{ $brand->name }}@if ($brand->pending_approval) <span class="badge pending">pending approval</span>@endif <small>{{ $brandSelected ? $brandSelected.' selected' : $brand->laptopModels->count().' models' }}</small></summary>
                 @forelse ($brand->laptopModels as $model)
                   <div class="model" data-search="{{ Str::lower($brand->name.' '.$model->name) }}">
-                    <b>{{ $model->name }}</b>
+                    <b>{{ $model->name }}</b>@if ($model->pending_approval) <span class="badge pending">pending approval</span>@endif
                     <div class="gens">
                       @forelse ($model->generations as $generation)
-                        <label class="check"><input type="checkbox" name="generation_ids[]" value="{{ $generation->id }}" @checked(in_array($generation->id, $selectedGenerations))> {{ $generation->label }}</label>
+                        <label class="check"><input type="checkbox" name="generation_ids[]" value="{{ $generation->id }}" @checked(in_array($generation->id, $selectedGenerations))> {{ $generation->label }}@if ($generation->pending_approval) <span class="badge pending">pending</span>@endif</label>
                       @empty
                         <small class="help">No years yet — <a class="link" href="{{ route('admin.models.edit', $model) }}" target="_blank">add one</a>.</small>
                       @endforelse

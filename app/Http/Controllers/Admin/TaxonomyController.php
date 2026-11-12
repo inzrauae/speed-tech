@@ -89,6 +89,9 @@ class TaxonomyController extends Controller
         ]));
         $data['sort_order'] = $data['sort_order'] ?? 0;
         $data['is_active'] = $request->boolean('is_active');
+        if ($data['is_active']) {
+            $data['pending_approval'] = false; // an admin publishing it approves an AI suggestion
+        }
         if ($type !== 'brands' && blank($data['sku_prefix'] ?? null)) {
             $data['sku_prefix'] = $item->sku_prefix; // keep existing; new ones are derived from the name
         }

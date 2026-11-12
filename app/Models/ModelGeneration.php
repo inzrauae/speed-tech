@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ModelGeneration extends Model
 {
-    protected $fillable = ['laptop_model_id', 'label', 'year_from', 'year_to', 'notes'];
+    protected $fillable = ['laptop_model_id', 'label', 'year_from', 'year_to', 'notes', 'pending_approval'];
 
     protected function casts(): array
     {
-        return ['year_from' => 'integer', 'year_to' => 'integer'];
+        return ['year_from' => 'integer', 'year_to' => 'integer', 'pending_approval' => 'boolean'];
     }
 
     public function laptopModel(): BelongsTo

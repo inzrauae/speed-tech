@@ -25,6 +25,10 @@
         ])
         @foreach ($nav as [$route, $label, $icon, $pattern])
           <a href="{{ route($route) }}" @class(['active' => request()->routeIs($pattern)])><svg class="icon"><use href="#icon-{{ $icon }}"/></svg>{{ $label }}</a>
+          @if ($route === 'admin.ai.create')
+            @php($pendingApprovals = \App\Http\Controllers\Admin\ApprovalController::pendingCount())
+            <a href="{{ route('admin.approvals.index') }}" @class(['active' => request()->routeIs('admin.approvals.*')])><svg class="icon"><use href="#icon-check"/></svg>Pending approvals @if ($pendingApprovals)<b class="nav-badge">{{ $pendingApprovals }}</b>@endif</a>
+          @endif
         @endforeach
         <span class="side-label">Spare-part finder</span>
         <a href="{{ route('admin.catalog.index', 'brands') }}" @class(['active' => request()->is('admin/catalog/brands')])><svg class="icon"><use href="#icon-tag"/></svg>1. Brands</a>

@@ -68,6 +68,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::resource('products', Admin\ProductController::class)->except('show');
 
+        // New brands / models / years / part types / categories suggested by the AI writer.
+        Route::get('approvals', [Admin\ApprovalController::class, 'index'])->name('approvals.index');
+        Route::post('approvals/approve-all', [Admin\ApprovalController::class, 'approveAll'])->name('approvals.approve-all');
+        Route::post('approvals/{type}/{id}/approve', [Admin\ApprovalController::class, 'approve'])->whereNumber('id')->name('approvals.approve');
+        Route::post('approvals/{type}/{id}/replace', [Admin\ApprovalController::class, 'replace'])->whereNumber('id')->name('approvals.replace');
+        Route::delete('approvals/{type}/{id}', [Admin\ApprovalController::class, 'reject'])->whereNumber('id')->name('approvals.reject');
+
         Route::get('catalog/{type}', [Admin\TaxonomyController::class, 'index'])->name('catalog.index');
         Route::post('catalog/{type}', [Admin\TaxonomyController::class, 'store'])->name('catalog.store');
         Route::put('catalog/{type}/{id}', [Admin\TaxonomyController::class, 'update'])->name('catalog.update');

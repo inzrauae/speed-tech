@@ -26,8 +26,8 @@ class Product extends Model
     public const LOW_STOCK = 3;
 
     protected $fillable = [
-        'type', 'category_id', 'part_category_id', 'name', 'slug', 'sku', 'oem_part_number',
-        'tag', 'summary', 'description', 'meta_title', 'meta_description', 'specification', 'connector_type', 'size',
+        'type', 'category_id', 'part_category_id', 'name', 'brand', 'slug', 'sku', 'oem_part_number',
+        'tag', 'summary', 'description', 'meta_title', 'meta_description', 'focus_keyword', 'faqs', 'image_alt', 'specification', 'connector_type', 'size',
         'price', 'compare_at_price', 'cost_price', 'stock_qty', 'reorder_level', 'warranty', 'image', 'is_featured', 'is_active',
     ];
 
@@ -50,6 +50,7 @@ class Product extends Model
             'is_featured' => 'boolean',
             'is_active' => 'boolean',
             'ai_draft' => 'boolean',
+            'faqs' => 'array',
         ];
     }
 
@@ -209,6 +210,152 @@ class Product extends Model
     public function url(): string
     {
         return route('products.show', $this);
+    }
+
+    public function imageAlt(): string
+    {
+        return $this->image_alt ?: $this->name;
+    }
+
+    /** @return list<array{q: string, a: string}> */
+    public function faqList(): array
+    {
+        return array_values(array_filter((array) $this->faqs, fn ($f) => filled($f['q'] ?? null) && filled($f['a'] ?? null)));
+    }
+
+    /** Meta description for Google: the written one, else the summary, else the description start. */
+    public function seoDescription(): string
+    {
+        $text = $this->meta_description ?: ($this->summary ?: preg_replace('/^##\s*/m', '', (string) $this->description));
+
+        return Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags($text))), 160);
+    }
+
+    /**
+     * Description as safe HTML. Plain-text format: blank line = new paragraph,
+     * "## Heading" = sub-heading, lines starting with "• " or "- " = bullet list.
+     */
+    public function descriptionHtml(): \Illuminate\Support\HtmlString
+    {
+        $html = '';
+        $blocks = preg_split('/\R\s*\R/', trim((string) $this->description));
+
+        foreach ($blocks as $block) {
+            $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $block)), 'strlen'));
+            $text = [];
+            $flush = function () use (&$text, &$html) {
+                if ($text) {
+                    $html .= '<p>'.implode('<br>', array_map('e', $text)).'</p>';
+                    $text = [];
+                }
+            };
+
+            for ($i = 0; $i < count($lines); $i++) {
+                $line = $lines[$i];
+                if (str_starts_with($line, '## ')) {
+                    $flush();
+                    $html .= '<h3>'.e(trim(substr($line, 3))).'</h3>';
+                } elseif (preg_match('/^(•|-|\*)\s+/u', $line)) {
+                    $flush();
+                    $items = [];
+                    while ($i < count($lines) && preg_match('/^(•|-|\*)\s+/u', $lines[$i])) {
+                        $items[] = '<li>'.e(preg_replace('/^(•|-|\*)\s+/u', '', $lines[$i])).'</li>';
+                        $i++;
+                    }
+                    $i--;
+                    $html .= '<ul>'.implode('', $items).'</ul>';
+                } else {
+                    $text[] = $line;
+                }
+            }
+            $flush();
+        }
+
+        return new \Illuminate\Support\HtmlString($html);
+    }
+
+    /**
+     * schema.org JSON-LD for Google: Product (+ Offer), BreadcrumbList and,
+     * when the page shows FAQs, FAQPage. Built from live data so price and
+     * stock in the markup always match the page.
+     *
+     * @param  \Illuminate\Support\Collection<string, list<string>>|null  $compatibility  "Brand Model" => [year labels]
+     */
+    public function structuredData($compatibility = null): array
+    {
+        $shop = config('speedtech');
+        $url = $this->url();
+        $seller = ['@type' => 'Organization', 'name' => $shop['legal_name'], 'url' => url('/')];
+
+        $product = array_filter([
+            '@context' => 'https://schema.org',
+            '@type' => 'Product',
+            '@id' => $url.'#product',
+            'name' => $this->name,
+            'url' => $url,
+            'image' => [$this->imageUrl()],
+            'description' => Str::limit(trim(preg_replace('/\s+/', ' ', preg_replace('/^##\s*|^[•*-]\s+/mu', '', strip_tags((string) ($this->description ?: $this->summary))))), 5000),
+            'sku' => $this->sku,
+            'mpn' => $this->oem_part_number,
+            'brand' => $this->brand ? ['@type' => 'Brand', 'name' => $this->brand] : null,
+            'category' => $this->groupLabel(),
+            'size' => $this->size,
+            'additionalProperty' => array_values(array_filter([
+                $this->specification ? ['@type' => 'PropertyValue', 'name' => 'Specification', 'value' => $this->specification] : null,
+                $this->connector_type ? ['@type' => 'PropertyValue', 'name' => 'Connector', 'value' => $this->connector_type] : null,
+                $this->warranty ? ['@type' => 'PropertyValue', 'name' => 'Warranty', 'value' => $this->warranty] : null,
+            ])) ?: null,
+            'isAccessoryOrSparePartFor' => $compatibility && $compatibility->isNotEmpty()
+                ? $compatibility->keys()->map(fn ($model) => ['@type' => 'Product', 'name' => $model])->values()->all()
+                : null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        if ($this->price !== null) {
+            $product['offers'] = [
+                '@type' => 'Offer',
+                'url' => $url,
+                'priceCurrency' => 'LKR',
+                'price' => number_format((float) $this->price, 2, '.', ''),
+                'availability' => $this->stock_qty > 0 ? 'https://schema.org/InStock' : 'https://schema.org/BackOrder',
+                'itemCondition' => 'https://schema.org/NewCondition',
+                'seller' => $seller,
+                'shippingDetails' => [
+                    '@type' => 'OfferShippingDetails',
+                    'shippingRate' => ['@type' => 'MonetaryAmount', 'value' => number_format((float) $shop['delivery_fee'], 2, '.', ''), 'currency' => 'LKR'],
+                    'shippingDestination' => ['@type' => 'DefinedRegion', 'addressCountry' => 'LK'],
+                ],
+            ];
+        }
+
+        $crumbs = [['Home', route('home')]];
+        if ($this->isSparePart()) {
+            $crumbs[] = ['Laptop spare parts', route('spare-parts')];
+            if ($this->partCategory) {
+                $crumbs[] = [$this->partCategory->name, route('spare-parts', ['part' => $this->part_category_id])];
+            }
+        } else {
+            $crumbs[] = ['Accessories', route('shop')];
+            if ($this->category) {
+                $crumbs[] = [$this->category->name, route('shop', ['category' => $this->category->slug])];
+            }
+        }
+        $crumbs[] = [$this->name, $url];
+
+        $graphs = [$product, [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => collect($crumbs)->map(fn ($c, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $c[0], 'item' => $c[1]])->all(),
+        ]];
+
+        if ($faqs = $this->faqList()) {
+            $graphs[] = [
+                '@context' => 'https://schema.org',
+                '@type' => 'FAQPage',
+                'mainEntity' => array_map(fn ($f) => ['@type' => 'Question', 'name' => $f['q'], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f['a']]], $faqs),
+            ];
+        }
+
+        return $graphs;
     }
 
     public function getRouteKeyName(): string

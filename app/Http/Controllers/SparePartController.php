@@ -32,7 +32,7 @@ class SparePartController extends Controller
         // tampered URL cannot show a mismatched selection.
         $brand = $brands->firstWhere('id', (int) $request->query('brand'));
         $model = $brand ? LaptopModel::active()->where('brand_id', $brand->id)->find($request->query('model')) : null;
-        $generation = $model ? ModelGeneration::where('laptop_model_id', $model->id)->find($request->query('generation')) : null;
+        $generation = $model ? ModelGeneration::where('laptop_model_id', $model->id)->where('pending_approval', false)->find($request->query('generation')) : null;
         $part = $partCategories->firstWhere('id', (int) $request->query('part'));
         $search = trim((string) $request->query('q'));
 
@@ -53,7 +53,7 @@ class SparePartController extends Controller
             'brands' => $brands,
             'partCategories' => $partCategories,
             'models' => $brand ? LaptopModel::active()->where('brand_id', $brand->id)->get() : collect(),
-            'generations' => $model ? $model->generations : collect(),
+            'generations' => $model ? $model->generations->reject->pending_approval->values() : collect(),
             'selected' => compact('brand', 'model', 'generation', 'part'),
             'search' => $search,
             'products' => $products,

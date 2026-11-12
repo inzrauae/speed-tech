@@ -96,6 +96,12 @@ class ProductController extends Controller
             'description' => ['nullable', 'string', 'max:10000'],
             'meta_title' => ['nullable', 'string', 'max:120'],
             'meta_description' => ['nullable', 'string', 'max:300'],
+            'focus_keyword' => ['nullable', 'string', 'max:100'],
+            'image_alt' => ['nullable', 'string', 'max:200'],
+            'brand' => ['nullable', 'string', 'max:60'],
+            'faqs' => ['nullable', 'array', 'max:8'],
+            'faqs.*.q' => ['nullable', 'string', 'max:200'],
+            'faqs.*.a' => ['nullable', 'string', 'max:600'],
             'specification' => ['nullable', 'string', 'max:255'],
             'connector_type' => ['nullable', 'string', 'max:255'],
             'size' => ['nullable', 'string', 'max:255'],
@@ -121,6 +127,10 @@ class ProductController extends Controller
         // Stock is changed through the inventory log, not set directly.
         $newStock = (int) $data['stock_qty'];
         $product->fill(collect($data)->except(['image', 'remove_image', 'generation_ids', 'stock_qty'])->all());
+        $faqs = collect($data['faqs'] ?? [])
+            ->map(fn ($f) => ['q' => trim((string) ($f['q'] ?? '')), 'a' => trim((string) ($f['a'] ?? ''))])
+            ->filter(fn ($f) => $f['q'] !== '' && $f['a'] !== '')->values()->all();
+        $product->faqs = $faqs ?: null;
         $product->reorder_level = (int) ($data['reorder_level'] ?? 3);
         $isNew = ! $product->exists;
         $product->is_featured = $request->boolean('is_featured');
@@ -130,6 +140,11 @@ class ProductController extends Controller
         }
         $product->category_id = $isPart ? null : $data['category_id'];
         $product->part_category_id = $isPart ? $data['part_category_id'] : null;
+        if ($product->is_active && ($pending = $this->pendingTaxonomy($product, $isPart ? ($data['generation_ids'] ?? []) : []))) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'is_active' => 'This product uses '.implode(', ', $pending).', still waiting for approval. Approve or replace '.(count($pending) > 1 ? 'them' : 'it').' on the Pending approvals page first, or save it hidden for now.',
+            ]);
+        }
         if (blank($data['slug'] ?? null) && ! $product->exists) {
             $product->slug = null; // HasSlug fills it from the name
         } elseif (blank($data['slug'] ?? null)) {
@@ -157,6 +172,24 @@ class ProductController extends Controller
         } elseif (! $isNew && $newStock !== (int) $product->stock_qty) {
             Inventory::setCount($product, $newStock, ['note' => 'Changed on the product form']);
         }
+    }
+
+    /** Names of not-yet-approved catalog entries this product would use. */
+    private function pendingTaxonomy(Product $product, array $generationIds): array
+    {
+        $pending = [];
+        if ($product->category_id && Category::whereKey($product->category_id)->where('pending_approval', true)->exists()) {
+            $pending[] = 'a new shop category';
+        }
+        if ($product->part_category_id && PartCategory::whereKey($product->part_category_id)->where('pending_approval', true)->exists()) {
+            $pending[] = 'a new part type';
+        }
+        $generations = \App\Models\ModelGeneration::with('laptopModel.brand')->whereKey($generationIds)->get();
+        if ($generations->contains(fn ($g) => $g->pending_approval || $g->laptopModel?->pending_approval || $g->laptopModel?->brand?->pending_approval)) {
+            $pending[] = 'new laptop brands, models or years';
+        }
+
+        return $pending;
     }
 
     private function deleteImage(?string $path): void

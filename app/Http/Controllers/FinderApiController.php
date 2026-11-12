@@ -34,7 +34,7 @@ class FinderApiController extends Controller
         $request->validate(['model' => ['required', 'integer']]);
 
         return response()->json(
-            ModelGeneration::where('laptop_model_id', $request->integer('model'))
+            ModelGeneration::where('laptop_model_id', $request->integer('model'))->where('pending_approval', false)
                 ->orderByDesc('year_from')->orderBy('label')->get(['id', 'label'])
         );
     }
