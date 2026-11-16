@@ -181,6 +181,7 @@ details.adjust[open] summary{background:var(--dark);color:#fff;border-color:var(
 .ai-image{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 .ai-image summary{cursor:pointer;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
 .ai-image .field{margin-top:10px}
+.fb-ad-btn{margin-top:12px;width:100%;justify-content:center}
 .mini-move .thumb{width:44px;height:44px;object-fit:contain;background:var(--surface);border-radius:4px;flex:none}
 .nav-badge{margin-left:auto;min-width:20px;padding:1px 7px;border-radius:20px;background:#ffb020;color:#1b1b1b;font-size:11px;text-align:center}
 .approval-group{margin-bottom:18px}

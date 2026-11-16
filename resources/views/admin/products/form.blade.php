@@ -175,6 +175,7 @@
               @if ($product->image)<label class="check"><input type="checkbox" name="use_current" value="1" form="aiImageForm" checked> Use the current image as reference</label>@endif
               <button class="btn sm" type="submit" form="aiImageForm" style="margin-top:10px">Generate image</button>
             </details>
+            <a class="btn sm fb-ad-btn" href="{{ route('admin.fb-ad.create', $product) }}"><svg class="icon"><use href="#icon-tag"/></svg>Create FB ad post</a>
           @endif
         </section>
 

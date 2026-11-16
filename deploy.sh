@@ -51,7 +51,7 @@ fi
 export COMPOSER_HOME="${COMPOSER_HOME:-$HOME/.composer}"
 $COMPOSER install --no-dev --optimize-autoloader --no-interaction --no-progress
 
-mkdir -p storage/framework/{cache/data,sessions,views} storage/logs bootstrap/cache public/uploads/products
+mkdir -p storage/framework/{cache/data,sessions,views} storage/logs bootstrap/cache public/uploads/products public/uploads/ads
 $PHP artisan config:clear >/dev/null
 
 if [ -z "$(env_value APP_KEY)" ]; then
