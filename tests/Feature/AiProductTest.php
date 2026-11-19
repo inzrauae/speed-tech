@@ -274,4 +274,19 @@ class AiProductTest extends TestCase
         $this->assertFileDoesNotExist(public_path($old));
         $this->assertFileExists(public_path($product->image));
     }
+
+    public function test_image_prompt_includes_the_products_connector_and_specification(): void
+    {
+        $this->fakeGemini($this->draft(['compatible' => []]));
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $product = Product::sole();
+        $product->forceFill(['specification' => '15.6" FHD', 'connector_type' => '30-pin eDP', 'size' => '15.6 inch'])->save();
+
+        $this->post(route('admin.ai.image', $product), ['image_details' => 'connector side up']);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'image-model')
+            && str_contains($text = json_encode($request->data(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 'Connector: 30-pin eDP')
+            && str_contains($text, 'Size: 15.6 inch')
+            && str_contains($text, 'connector side up'));
+    }
 }

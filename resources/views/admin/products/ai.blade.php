@@ -48,7 +48,7 @@
             </div>
 
             <label class="field" id="detailsField">Image details <small>(optional) — describe the picture you want: angle, colour, what to show, background, props</small>
-              <textarea name="image_details" rows="3" maxlength="1500" placeholder="e.g. Show the keyboard from a 45° top angle with the white backlight on, matte black, on a light grey background">{{ old('image_details') }}</textarea>
+              <textarea name="image_details" rows="3" maxlength="1500" placeholder="e.g. 2.5&quot; SATA SSD, black metal case, SATA data + power connector on the short edge, show the connector side at a 45° angle">{{ old('image_details') }}</textarea>
             </label>
           </div>
         </section>

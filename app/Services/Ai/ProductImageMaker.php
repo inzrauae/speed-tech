@@ -24,12 +24,12 @@ class ProductImageMaker
      * @param  array{mime: string, data: string}|null  $photo  reference photo of the real product
      * @return array{path: string, ai: bool, warning: ?string}  path relative to public/
      */
-    public function make(string $name, string $visual = '', string $details = '', ?array $photo = null): array
+    public function make(string $name, string $visual = '', string $details = '', ?array $photo = null, string $specs = ''): array
     {
         try {
             // Own model setting (cheapest image model by default). The AI only draws the product
             // on plain white; the line art is added by brand(), so every model gives the same look.
-            $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo), $photo ? [$photo] : [],
+            $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo, $specs), $photo ? [$photo] : [],
                 models: config('services.gemini.product_image_model'));
 
             return ['path' => $this->brand($image['data'], $name, false), 'ai' => true, 'warning' => null];
@@ -50,13 +50,15 @@ class ProductImageMaker
         return $this->brand($photo['data'], $name, true);
     }
 
-    private function prompt(string $name, string $visual, string $details, bool $hasPhoto): string
+    private function prompt(string $name, string $visual, string $details, bool $hasPhoto, string $specs = ''): string
     {
         return implode("\n", array_filter([
             "Professional e-commerce product photograph of: {$name}.",
+            $specs ? "Exact specification of this product: {$specs}" : null,
             $visual ? "What it looks like: {$visual}" : null,
-            $hasPhoto ? 'The attached photo shows the real product. Keep its true shape, colour, ports and details, but do not return the photo as it is: re-shoot it as a new, original studio photo with a fresh camera angle and lighting. Remove hands, clutter, price stickers, badges, labels added on top of the photo (like "Genuine" or "Original"), and any existing watermarks or shop logos.' : null,
+            $hasPhoto ? 'The attached photo shows the real product. Copy its true shape, proportions, colours and every connector exactly (connector type, number of pins or contacts, connector and cable colours, notch and port positions), but do not return the photo as it is: re-shoot it as a new, original studio photo with fresh lighting, from an angle that still shows the connectors clearly. Remove hands, clutter, price stickers, badges, labels added on top of the photo (like "Genuine" or "Original"), and any existing watermarks or shop logos.' : null,
             $details ? "Shop's instructions for this image (follow these closely): {$details}" : null,
+            'Technical accuracy matters most: the picture must match the specification above exactly. Show the correct form factor and size, the right connector type with the right number of pins, contacts and ports in the right places and colours (e.g. SATA, M.2 key notch, SO-DIMM edge contacts, eDP/LVDS pin count, USB/HDMI ports). Never add, remove or change ports, pins, notches or features, and never mix in parts of a different model.',
             'Style: photorealistic product, soft studio lighting, gentle natural shadow, product centred and filling about 65% of the frame, sharp focus, high detail.',
             'Background: pure plain white (#FFFFFF) all the way to every edge, seamless, with no pattern, texture, gradient, props or frame.',
             'Do not add any text, captions, watermarks, logos or people.',

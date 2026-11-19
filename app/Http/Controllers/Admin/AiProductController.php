@@ -75,7 +75,7 @@ class AiProductController extends Controller
         if ($data['image_mode'] !== 'none') {
             try {
                 $result = $data['image_mode'] === 'ai'
-                    ? $this->images->make($product->name, $draft['image_prompt'], (string) ($data['image_details'] ?? ''), $photo)
+                    ? $this->images->make($product->name, $draft['image_prompt'], (string) ($data['image_details'] ?? ''), $photo, $this->specs($product, $data['notes'] ?? null))
                     : ['path' => $this->images->fromPhoto($photo, $product->name), 'warning' => null];
                 $product->forceFill(['image' => $result['path']])->save();
                 if ($result['warning']) {
@@ -110,8 +110,7 @@ class AiProductController extends Controller
             ?? ($request->boolean('use_current') ? $this->currentImage($product) : null);
 
         try {
-            $visual = trim(implode('. ', array_filter([$product->specification, $product->summary])));
-            $result = $this->images->make($product->name, $visual, (string) ($data['image_details'] ?? ''), $photo);
+            $result = $this->images->make($product->name, (string) $product->summary, (string) ($data['image_details'] ?? ''), $photo, $this->specs($product));
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -151,6 +150,19 @@ class AiProductController extends Controller
         $product->save();
 
         return back()->with('status', 'Description, FAQs and SEO text rewritten. Review them, then save.'.($draft['review_notes'] ? ' AI note: '.$draft['review_notes'] : ''));
+    }
+
+    /** The product's technical facts for the image prompt (connector, pins, size…). */
+    private function specs(Product $product, ?string $notes = null): string
+    {
+        return implode('; ', array_filter([
+            $product->brand ? "Brand: {$product->brand}" : null,
+            $product->specification ? "Specification: {$product->specification}" : null,
+            $product->size ? "Size: {$product->size}" : null,
+            $product->connector_type ? "Connector: {$product->connector_type}" : null,
+            $product->oem_part_number ? "Part number: {$product->oem_part_number}" : null,
+            $notes ? 'Shop notes: '.Str::limit(trim($notes), 600) : null,
+        ]));
     }
 
     private function photo(?UploadedFile $file): ?array
