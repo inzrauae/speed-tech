@@ -35,8 +35,9 @@ return [
         'text_model' => env('GEMINI_TEXT_MODEL', 'gemini-3.5-flash,gemini-3.8-flash'),
         // 3.1 first: 2.5 Flash Image is cheaper but just copies a reference photo and ignores the line-art background.
         'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image,gemini-2.5-flash-image'),
-        // Product photos (AI writer): Nano Banana 2 only, it draws the branded line-art background.
-        'product_image_model' => env('GEMINI_PRODUCT_IMAGE_MODEL', 'gemini-3.1-flash-image'),
+        // Product photos (AI writer): cheapest model. The AI draws only the product on white;
+        // the branded line art is added by ProductImageMaker, so it shows with any model.
+        'product_image_model' => env('GEMINI_PRODUCT_IMAGE_MODEL', 'gemini-2.5-flash-image'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 90),
         'image_timeout' => (int) env('GEMINI_IMAGE_TIMEOUT', 180),
     ],

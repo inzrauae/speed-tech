@@ -27,8 +27,8 @@ class ProductImageMaker
     public function make(string $name, string $visual = '', string $details = '', ?array $photo = null): array
     {
         try {
-            // Own model setting: 2.5 Flash Image just copies the photo and skips the line-art
-            // background, so if this model fails the free photo + logo fallback below is better.
+            // Own model setting (cheapest image model by default). The AI only draws the product
+            // on plain white; the line art is added by brand(), so every model gives the same look.
             $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo), $photo ? [$photo] : [],
                 models: config('services.gemini.product_image_model'));
 
@@ -55,11 +55,11 @@ class ProductImageMaker
         return implode("\n", array_filter([
             "Professional e-commerce product photograph of: {$name}.",
             $visual ? "What it looks like: {$visual}" : null,
-            $hasPhoto ? 'The attached photo shows the real product. Keep its true shape, colour, ports and details, but create a new, original studio shot with a fresh camera angle and lighting. Remove hands, clutter, price stickers and any existing watermarks or shop logos.' : null,
+            $hasPhoto ? 'The attached photo shows the real product. Keep its true shape, colour, ports and details, but do not return the photo as it is: re-shoot it as a new, original studio photo with a fresh camera angle and lighting. Remove hands, clutter, price stickers, badges, labels added on top of the photo (like "Genuine" or "Original"), and any existing watermarks or shop logos.' : null,
             $details ? "Shop's instructions for this image (follow these closely): {$details}" : null,
-            'Style: photorealistic product, soft studio lighting, gentle natural shadow, product centred and filling about 70% of the frame, sharp focus, high detail.',
-            'Background: clean white with a very faint, subtle line-art pattern in pale red and light grey-black. The pattern is bands of 4 to 6 straight parallel stripes, evenly spaced, that run in from the edges and turn at sharp 90-degree right angles, forming squared hook and square-spiral shapes, like a squared maze. No curves, no circles, no dots, no circuit nodes. Keep it very low contrast, like a light watermark (about 10 to 15% opacity), so the product stands out clearly. Arrange the bands differently from any other image, keep them mostly near the edges and corners, behind the product, and never let lines cross over the product.',
-            'Do not add any text, captions, watermarks, logos or people. A shop logo will be placed in the bottom-right corner later, so let the line art fade out naturally before that corner, leaving it as the same open white background. Do not draw any box, panel, frame or blank rectangle there.',
+            'Style: photorealistic product, soft studio lighting, gentle natural shadow, product centred and filling about 65% of the frame, sharp focus, high detail.',
+            'Background: pure plain white (#FFFFFF) all the way to every edge, seamless, with no pattern, texture, gradient, props or frame.',
+            'Do not add any text, captions, watermarks, logos or people.',
         ]));
     }
 
@@ -85,6 +85,9 @@ class ProductImageMaker
         imagecopyresampled($canvas, $src, (int) ((self::SIZE - $dw) / 2), (int) ((self::SIZE - $dh) / 2), 0, 0, $dw, $dh, $w, $h);
         imagedestroy($src);
 
+        if (! $contain) {
+            $this->addLineArtBehind($canvas);
+        }
         $this->stampLogo($canvas);
 
         $file = Str::slug(Str::limit($name, 60, '')).'-'.Str::lower(Str::random(6)).'.jpg';
@@ -137,6 +140,86 @@ class ProductImageMaker
         // Wash it out to a light watermark: a mostly-opaque white layer on top.
         imagealphablending($canvas, true);
         imagefilledrectangle($canvas, 0, 0, self::SIZE, self::SIZE, imagecolorallocatealpha($canvas, 255, 255, 255, 28));
+    }
+
+    /**
+     * Put the line art on an AI picture's white background only: the white area is found by
+     * flood-filling from the edges, so the product (even a white box inside it) is never drawn over.
+     */
+    private function addLineArtBehind(GdImage $canvas): void
+    {
+        $layer = imagecreatetruecolor(self::SIZE, self::SIZE);
+        imagefill($layer, 0, 0, imagecolorallocate($layer, 255, 255, 255));
+        $this->drawLineArt($layer);
+
+        $cell = 4;
+        $n = intdiv(self::SIZE, $cell);
+        $mask = $this->backgroundMask($canvas, $n);
+
+        for ($y = 0; $y < self::SIZE; $y++) {
+            $row = intdiv($y, $cell) * $n;
+            for ($x = 0; $x < self::SIZE; $x++) {
+                $l = imagecolorat($layer, $x, $y) & 0xFFFFFF;
+                if ($l === 0xFFFFFF || ! $mask[$row + intdiv($x, $cell)]) {
+                    continue;
+                }
+                $c = imagecolorat($canvas, $x, $y);
+                // "Darken" blend: on white it shows the line art as drawn.
+                imagesetpixel($canvas, $x, $y,
+                    (min($c >> 16 & 255, $l >> 16 & 255) << 16) | (min($c >> 8 & 255, $l >> 8 & 255) << 8) | min($c & 255, $l & 255));
+            }
+        }
+        imagedestroy($layer);
+    }
+
+    /**
+     * Near-white cells connected to the picture's edges, on an $n×$n grid, shrunk by one cell
+     * so the line art keeps clear of the product's outline.
+     *
+     * @return list<bool>
+     */
+    private function backgroundMask(GdImage $canvas, int $n): array
+    {
+        $small = imagecreatetruecolor($n, $n);
+        imagecopyresampled($small, $canvas, 0, 0, 0, 0, $n, $n, self::SIZE, self::SIZE);
+
+        $white = [];
+        for ($y = 0; $y < $n; $y++) {
+            for ($x = 0; $x < $n; $x++) {
+                $c = imagecolorat($small, $x, $y);
+                [$r, $g, $b] = [$c >> 16 & 255, $c >> 8 & 255, $c & 255];
+                $white[] = min($r, $g, $b) >= 228 && max($r, $g, $b) - min($r, $g, $b) <= 20;
+            }
+        }
+        imagedestroy($small);
+
+        $filled = array_fill(0, $n * $n, false);
+        $stack = [];
+        for ($i = 0; $i < $n; $i++) {
+            array_push($stack, $i, ($n - 1) * $n + $i, $i * $n, $i * $n + $n - 1);
+        }
+        while ($stack) {
+            $i = array_pop($stack);
+            if ($filled[$i] || ! $white[$i]) {
+                continue;
+            }
+            $filled[$i] = true;
+            [$x, $y] = [$i % $n, intdiv($i, $n)];
+            if ($x > 0) $stack[] = $i - 1;
+            if ($x < $n - 1) $stack[] = $i + 1;
+            if ($y > 0) $stack[] = $i - $n;
+            if ($y < $n - 1) $stack[] = $i + $n;
+        }
+
+        $mask = [];
+        foreach ($filled as $i => $bg) {
+            [$x, $y] = [$i % $n, intdiv($i, $n)];
+            $mask[] = $bg
+                && ($x === 0 || $filled[$i - 1]) && ($x === $n - 1 || $filled[$i + 1])
+                && ($y === 0 || $filled[$i - $n]) && ($y === $n - 1 || $filled[$i + $n]);
+        }
+
+        return $mask;
     }
 
     /**
