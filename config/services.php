@@ -33,8 +33,8 @@ return [
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
         'text_model' => env('GEMINI_TEXT_MODEL', 'gemini-3.5-flash,gemini-3.8-flash'),
-        // 3.1 first: 2.5 Flash Image is cheaper but just copies a reference photo and ignores the line-art background.
-        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image,gemini-2.5-flash-image'),
+        // Facebook ad pictures: cheapest image model.
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
         // Product photos (AI writer): cheapest model. The AI draws only the product on white;
         // the branded line art is added by ProductImageMaker, so it shows with any model.
         'product_image_model' => env('GEMINI_PRODUCT_IMAGE_MODEL', 'gemini-2.5-flash-image'),

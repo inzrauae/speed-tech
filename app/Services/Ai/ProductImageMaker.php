@@ -17,6 +17,8 @@ class ProductImageMaker
 {
     public const DIR = 'uploads/products';
     private const SIZE = 1200;
+    /** Share of the square the product (with its shadow) takes up on its longest side. */
+    private const FILL = 0.8;
 
     public function __construct(private GeminiClient $gemini) {}
 
@@ -59,7 +61,7 @@ class ProductImageMaker
             $hasPhoto ? 'The attached photo shows the real product. Copy its true shape, proportions, colours and every connector exactly (connector type, number of pins or contacts, connector and cable colours, notch and port positions), but do not return the photo as it is: re-shoot it as a new, original studio photo with fresh lighting, from an angle that still shows the connectors clearly. Remove hands, clutter, price stickers, badges, labels added on top of the photo (like "Genuine" or "Original"), and any existing watermarks or shop logos.' : null,
             $details ? "Shop's instructions for this image (follow these closely): {$details}" : null,
             'Technical accuracy matters most: the picture must match the specification above exactly. Show the correct form factor and size, the right connector type with the right number of pins, contacts and ports in the right places and colours (e.g. SATA, M.2 key notch, SO-DIMM edge contacts, eDP/LVDS pin count, USB/HDMI ports). Never add, remove or change ports, pins, notches or features, and never mix in parts of a different model.',
-            'Style: photorealistic product, soft studio lighting, gentle natural shadow, product centred and filling about 65% of the frame, sharp focus, high detail.',
+            'Style: photorealistic product, soft studio lighting, gentle natural shadow, product centred and large, filling about 75% of the frame, with the whole product (and every connector) fully inside the picture and a clear white margin on every side, sharp focus, high detail.',
             'Background: pure plain white (#FFFFFF) all the way to every edge, seamless, with no pattern, texture, gradient, props or frame.',
             'Do not add any text, captions, watermarks, logos or people.',
         ]));
@@ -80,11 +82,13 @@ class ProductImageMaker
         }
 
         [$w, $h] = [imagesx($src), imagesy($src)];
-        // AI images are already square: fill. Plain photos: fit inside with a margin.
-        $box = $contain ? self::SIZE * 0.86 : self::SIZE;
-        $scale = $contain ? min($box / $w, $box / $h) : max($box / $w, $box / $h);
-        [$dw, $dh] = [(int) round($w * $scale), (int) round($h * $scale)];
-        imagecopyresampled($canvas, $src, (int) ((self::SIZE - $dw) / 2), (int) ((self::SIZE - $dh) / 2), 0, 0, $dw, $dh, $w, $h);
+        // AI images are on plain white: cut away the empty white and enlarge the product so every
+        // product fills the same share of the square. Plain photos: fit inside with a margin.
+        [$sx, $sy, $sw, $sh] = $contain ? [0, 0, $w, $h] : ($this->contentBox($src) ?? [0, 0, $w, $h]);
+        $box = $contain ? self::SIZE * 0.86 : self::SIZE * self::FILL;
+        $scale = min($box / $sw, $box / $sh, $contain ? INF : 4);
+        [$dw, $dh] = [(int) round($sw * $scale), (int) round($sh * $scale)];
+        imagecopyresampled($canvas, $src, (int) ((self::SIZE - $dw) / 2), (int) ((self::SIZE - $dh) / 2), $sx, $sy, $dw, $dh, $sw, $sh);
         imagedestroy($src);
 
         if (! $contain) {
@@ -142,6 +146,50 @@ class ProductImageMaker
         // Wash it out to a light watermark: a mostly-opaque white layer on top.
         imagealphablending($canvas, true);
         imagefilledrectangle($canvas, 0, 0, self::SIZE, self::SIZE, imagecolorallocatealpha($canvas, 255, 255, 255, 28));
+    }
+
+    /**
+     * The rectangle around everything that is not plain white background (product + shadow),
+     * as [x, y, width, height], or null when the picture has no clear white border to trim.
+     *
+     * @return array{int, int, int, int}|null
+     */
+    private function contentBox(GdImage $src): ?array
+    {
+        [$w, $h] = [imagesx($src), imagesy($src)];
+        $step = 2;
+        $cols = array_fill(0, $w, 0);
+        $rows = array_fill(0, $h, 0);
+        for ($y = 0; $y < $h; $y += $step) {
+            for ($x = 0; $x < $w; $x += $step) {
+                $c = imagecolorat($src, $x, $y);
+                [$r, $g, $b] = [$c >> 16 & 255, $c >> 8 & 255, $c & 255];
+                if (min($r, $g, $b) < 232 || max($r, $g, $b) - min($r, $g, $b) > 24) {
+                    $cols[$x]++;
+                    $rows[$y]++;
+                }
+            }
+        }
+
+        // Ignore stray specks: a row/column needs a few non-white samples to count.
+        $edges = function (array $counts) {
+            $hits = array_keys(array_filter($counts, fn ($n) => $n >= 3));
+
+            return $hits ? [min($hits), max($hits)] : null;
+        };
+        [$x0, $x1] = $edges($cols) ?? [null, null];
+        [$y0, $y1] = $edges($rows) ?? [null, null];
+        if ($x0 === null || $y0 === null) {
+            return null;
+        }
+
+        $pad = (int) round(max($x1 - $x0, $y1 - $y0) * 0.02);
+        $x0 = max(0, $x0 - $pad);
+        $y0 = max(0, $y0 - $pad);
+        $x1 = min($w - 1, $x1 + $pad + $step);
+        $y1 = min($h - 1, $y1 + $pad + $step);
+
+        return [$x0, $y0, $x1 - $x0 + 1, $y1 - $y0 + 1];
     }
 
     /**
