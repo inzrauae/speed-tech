@@ -33,8 +33,10 @@ return [
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
         'text_model' => env('GEMINI_TEXT_MODEL', 'gemini-3.5-flash,gemini-3.8-flash'),
-        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image,gemini-2.5-flash-image'),
+        // Cheapest first: 2.5 Flash Image costs less per picture than 3.1 Flash Image (Nano Banana 2).
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image,gemini-3.1-flash-image'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 90),
+        'image_timeout' => (int) env('GEMINI_IMAGE_TIMEOUT', 180),
     ],
 
     'slack' => [

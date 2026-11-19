@@ -6,6 +6,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -64,7 +65,7 @@ class GeminiClient
                 'responseModalities' => ['IMAGE'],
                 'imageConfig' => ['aspectRatio' => $aspectRatio],
             ],
-        ]);
+        ], image: true);
 
         foreach ($response->json('candidates.0.content.parts', []) as $part) {
             $inline = $part['inlineData'] ?? $part['inline_data'] ?? null;
@@ -109,8 +110,12 @@ class GeminiClient
         return ['mime' => 'image/jpeg', 'data' => ob_get_clean()];
     }
 
-    /** Tries each model in turn (comma-separated in .env) while Google is overloaded or too slow. */
-    private function call(string $models, array $payload): Response
+    /**
+     * Tries each model in turn (comma-separated in .env) while Google is overloaded or too slow.
+     * Image calls never move on after a timeout: Google usually finishes (and bills) the
+     * picture anyway, so asking the next model would pay for the same image twice.
+     */
+    private function call(string $models, array $payload, bool $image = false): Response
     {
         if (! $this->configured()) {
             throw new RuntimeException('Add GEMINI_API_KEY to the .env file to use the AI writer.');
@@ -122,16 +127,19 @@ class GeminiClient
                 $response = Http::withHeaders(['x-goog-api-key' => config('services.gemini.key')])
                     // Some networks have a broken IPv6 route to Google (requests just hang).
                     ->withOptions(['force_ip_resolve' => 'v4'])
-                    ->timeout(config('services.gemini.timeout', 90))
+                    ->timeout($image ? config('services.gemini.image_timeout', 180) : config('services.gemini.timeout', 90))
                     ->connectTimeout(15)
                     ->acceptJson()
-                    // "High demand" (503) and internal errors are usually gone within seconds.
+                    // "High demand" (503) and internal errors are usually gone within seconds (not billed).
                     ->retry(2, 1500, fn ($e) => $e instanceof RequestException && in_array($e->response->status(), [500, 503], true), throw: false)
                     ->post(self::BASE.rawurlencode($model).':generateContent', $payload);
             } catch (ConnectionException) {
-                $response = null; // timed out: try the next model
+                $response = null;
+                if ($image) {
+                    break; // see above: don't pay twice
+                }
 
-                continue;
+                continue; // timed out: try the next model
             }
 
             if (! in_array($response->status(), [500, 503], true)) {
@@ -145,6 +153,9 @@ class GeminiClient
         if ($response->failed()) {
             throw new RuntimeException($this->explain($response, $model));
         }
+
+        // One line per paid call, so the Google bill can be matched to what staff did.
+        Log::info('Gemini call', ['model' => $model, 'kind' => $image ? 'image' : 'text'] + (array) $response->json('usageMetadata', []));
 
         return $response;
     }
