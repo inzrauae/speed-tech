@@ -171,6 +171,7 @@
             <details class="ai-image" @if ($product->ai_draft) open @endif>
               <summary><svg class="icon"><use href="#icon-bolt"/></svg>New AI image with logo</summary>
               <label class="field">Image details <small>(optional)</small><textarea name="image_details" form="aiImageForm" rows="3" maxlength="1500" placeholder="e.g. 30-pin eDP socket at the bottom right, show the back with the connector visible"></textarea></label>
+              <label class="field">Style<select name="image_style" form="aiImageForm"><option value="photo">Product photo (clean, no text)</option><option value="technical">Technical sheet (close-ups, arrows, spec labels)</option></select></label>
               <label class="field">Reference photo <small>(optional)</small><input type="file" name="photo" form="aiImageForm" accept="image/jpeg,image/png,image/webp"></label>
               @if ($product->image)<label class="check"><input type="checkbox" name="use_current" value="1" form="aiImageForm" checked> Use the current image as reference</label>@endif
               <button class="btn sm" type="submit" form="aiImageForm" style="margin-top:10px">Generate image</button>

@@ -289,4 +289,20 @@ class AiProductTest extends TestCase
             && str_contains($text, 'Size: 15.6 inch')
             && str_contains($text, 'connector side up'));
     }
+
+    public function test_technical_style_asks_for_callouts_and_photo_style_forbids_text(): void
+    {
+        $this->fakeGemini($this->draft(['compatible' => []]));
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $product = Product::sole();
+        $prompt = fn ($request) => json_encode($request->data(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        $this->post(route('admin.ai.image', $product), ['image_style' => 'technical']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'image-model') && str_contains($prompt($r), 'TECHNICAL CALLOUTS') && str_contains($prompt($r), 'STRICT PHYSICAL ACCURACY'));
+
+        $this->post(route('admin.ai.image', $product), ['image_style' => 'photo']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'image-model') && str_contains($prompt($r), 'Do not add any text') && ! str_contains($prompt($r), 'TECHNICAL CALLOUTS'));
+
+        $this->post(route('admin.ai.image', $product), ['image_style' => 'poster'])->assertSessionHasErrors('image_style');
+    }
 }

@@ -42,6 +42,7 @@ class AiProductController extends Controller
             'notes' => ['nullable', 'string', 'max:1500'],
             'image_mode' => ['required', Rule::in(['ai', 'photo', 'none'])],
             'image_details' => ['nullable', 'string', 'max:1500'],
+            'image_style' => ['nullable', Rule::in([ProductImageMaker::STYLE_PHOTO, ProductImageMaker::STYLE_TECHNICAL])],
         ]);
         @set_time_limit(300);
 
@@ -75,7 +76,7 @@ class AiProductController extends Controller
         if ($data['image_mode'] !== 'none') {
             try {
                 $result = $data['image_mode'] === 'ai'
-                    ? $this->images->make($product->name, $draft['image_prompt'], (string) ($data['image_details'] ?? ''), $photo, $this->specs($product, $data['notes'] ?? null))
+                    ? $this->images->make($product->name, $draft['image_prompt'], (string) ($data['image_details'] ?? ''), $photo, $this->specs($product, $data['notes'] ?? null), $data['image_style'] ?? ProductImageMaker::STYLE_PHOTO)
                     : ['path' => $this->images->fromPhoto($photo, $product->name), 'warning' => null];
                 $product->forceFill(['image' => $result['path']])->save();
                 if ($result['warning']) {
@@ -101,6 +102,7 @@ class AiProductController extends Controller
     {
         $data = $request->validate([
             'image_details' => ['nullable', 'string', 'max:1500'],
+            'image_style' => ['nullable', Rule::in([ProductImageMaker::STYLE_PHOTO, ProductImageMaker::STYLE_TECHNICAL])],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'use_current' => ['nullable', 'boolean'],
         ]);
@@ -110,7 +112,7 @@ class AiProductController extends Controller
             ?? ($request->boolean('use_current') ? $this->currentImage($product) : null);
 
         try {
-            $result = $this->images->make($product->name, (string) $product->summary, (string) ($data['image_details'] ?? ''), $photo, $this->specs($product));
+            $result = $this->images->make($product->name, (string) $product->summary, (string) ($data['image_details'] ?? ''), $photo, $this->specs($product), $data['image_style'] ?? ProductImageMaker::STYLE_PHOTO);
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
         }

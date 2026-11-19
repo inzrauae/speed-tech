@@ -47,6 +47,13 @@
               </div>
             </div>
 
+            <div class="field" id="styleField">AI image style
+              <div style="display:grid;gap:8px;margin-top:8px">
+                <label class="check"><input type="radio" name="image_style" value="photo" @checked(old('image_style', 'photo') === 'photo')> Product photo <small class="help" style="margin:0">(clean, no text, best for the shop)</small></label>
+                <label class="check"><input type="radio" name="image_style" value="technical" @checked(old('image_style') === 'technical')> Technical sheet <small class="help" style="margin:0">(connector close-ups, arrows and spec labels from the specification)</small></label>
+              </div>
+            </div>
+
             <label class="field" id="detailsField">Image details <small>(optional) — describe the picture you want: angle, colour, what to show, background, props</small>
               <textarea name="image_details" rows="3" maxlength="1500" placeholder="e.g. 2.5&quot; SATA SSD, black metal case, SATA data + power connector on the short edge, show the connector side at a 45° angle">{{ old('image_details') }}</textarea>
             </label>
@@ -91,7 +98,8 @@
   (() => {
     const form = document.getElementById('aiForm');
     const details = document.getElementById('detailsField');
-    const sync = () => { details.hidden = form.querySelector('input[name="image_mode"]:checked')?.value !== 'ai'; };
+    const style = document.getElementById('styleField');
+    const sync = () => { details.hidden = style.hidden = form.querySelector('input[name="image_mode"]:checked')?.value !== 'ai'; };
     form.addEventListener('change', e => { if (e.target.name === 'image_mode') sync(); });
     sync();
 

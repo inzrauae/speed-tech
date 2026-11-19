@@ -16,6 +16,10 @@ use Throwable;
 class ProductImageMaker
 {
     public const DIR = 'uploads/products';
+
+    /** Clean shop photo (no text) or a technical sheet with callouts and close-ups. */
+    public const STYLE_PHOTO = 'photo';
+    public const STYLE_TECHNICAL = 'technical';
     private const SIZE = 1200;
     /** Share of the square the product (with its shadow) takes up on its longest side. */
     private const FILL = 0.8;
@@ -26,12 +30,12 @@ class ProductImageMaker
      * @param  array{mime: string, data: string}|null  $photo  reference photo of the real product
      * @return array{path: string, ai: bool, warning: ?string}  path relative to public/
      */
-    public function make(string $name, string $visual = '', string $details = '', ?array $photo = null, string $specs = ''): array
+    public function make(string $name, string $visual = '', string $details = '', ?array $photo = null, string $specs = '', string $style = self::STYLE_PHOTO): array
     {
         try {
             // Own model setting (cheapest image model by default). The AI only draws the product
             // on plain white; the line art is added by brand(), so every model gives the same look.
-            $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo, $specs), $photo ? [$photo] : [],
+            $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo, $specs, $style), $photo ? [$photo] : [],
                 models: config('services.gemini.product_image_model'));
 
             return ['path' => $this->brand($image['data'], $name, false), 'ai' => true, 'warning' => null];
@@ -52,18 +56,35 @@ class ProductImageMaker
         return $this->brand($photo['data'], $name, true);
     }
 
-    private function prompt(string $name, string $visual, string $details, bool $hasPhoto, string $specs = ''): string
+    private function prompt(string $name, string $visual, string $details, bool $hasPhoto, string $specs = '', string $style = self::STYLE_PHOTO): string
     {
+        $technical = $style === self::STYLE_TECHNICAL;
+
         return implode("\n", array_filter([
-            "Professional e-commerce product photograph of: {$name}.",
-            $specs ? "Exact specification of this product: {$specs}" : null,
+            'ROLE: You are a professional computer hardware technical illustrator and product visualisation specialist.',
+            $technical
+                ? "TASK: Create a high-quality technical product presentation image of: {$name}. It highlights the important specifications and physical features of the actual hardware."
+                : "TASK: Create a high-quality, professional e-commerce product photograph of: {$name}.",
+            $specs ? "Supplied specification (the only facts you may use): {$specs}" : null,
             $visual ? "What it looks like: {$visual}" : null,
-            $hasPhoto ? 'The attached photo shows the real product. Copy its true shape, proportions, colours and every connector exactly (connector type, number of pins or contacts, connector and cable colours, notch and port positions), but do not return the photo as it is: re-shoot it as a new, original studio photo with fresh lighting, from an angle that still shows the connectors clearly. Remove hands, clutter, price stickers, badges, labels added on top of the photo (like "Genuine" or "Original"), and any existing watermarks or shop logos.' : null,
+            $hasPhoto
+                ? 'REFERENCE: The attached photo is the primary and authoritative reference for the real product. Do not return it as it is: re-create it as a new, sharper, better-lit image of the SAME product. Remove hands, clutter, price stickers, badges added on top of the photo (like "Genuine" or "Original"), and any existing watermarks or shop logos.'
+                : null,
             $details ? "Shop's instructions for this image (follow these closely): {$details}" : null,
-            'Technical accuracy matters most: the picture must match the specification above exactly. Show the correct form factor and size, the right connector type with the right number of pins, contacts and ports in the right places and colours (e.g. SATA, M.2 key notch, SO-DIMM edge contacts, eDP/LVDS pin count, USB/HDMI ports). Never add, remove or change ports, pins, notches or features, and never mix in parts of a different model.',
-            'Style: photorealistic product, soft studio lighting, gentle natural shadow, product centred and large, filling about 75% of the frame, with the whole product (and every connector) fully inside the picture and a clear white margin on every side, sharp focus, high detail.',
+            '1. STRICT PHYSICAL ACCURACY (highest priority). Do not redesign, simplify, replace, assume or invent any physical feature. Preserve exactly'.($hasPhoto ? ' as in the reference' : ' as given in the specification').': the product model, form factor, dimensions and proportions; the number, position, orientation and shape of every port and connector; connector types (SATA, M.2, NVMe, USB, HDMI, DisplayPort, LVDS, eDP and others); the exact number of pins and contacts, their spacing, arrangement and orientation; connector colours (black, white, blue, gold, yellow and others); keying, notches, grooves, locking clips and cutouts; PCB layout, components and mounting holes; RAM notch position and gold contact layout; SSD/HDD SATA power and data layout, M.2 edge connector and key notch; laptop screen connector location, cable position, pin count and type; screws, brackets, hinges and labels. Never draw a visually similar but technically different component.',
+            '2. VISUAL ENHANCEMENT without changing the hardware: sharp, high resolution, clear; professional lighting and contrast with realistic surface detail and materials; photorealistic product photography or photorealistic 3D render; accurate proportions.',
+            $technical
+                ? '3. TECHNICAL CALLOUTS: add clean, thin arrows, circles and callout labels pointing at the important features (interface, connector type, number of pins or contacts, port configuration, capacity, speed, dimensions). Labels may ONLY use words and numbers from the supplied specification, copied exactly and spelled correctly, in a clean sans-serif font. If a detail is not in the specification or cannot be identified confidently, leave it unlabelled. Never write model numbers, brand names or figures that were not supplied.'
+                : null,
+            $technical
+                ? '4. MULTI-VIEW LAYOUT: a large main product view plus up to two small inset close-ups in neat rounded frames (e.g. an enlarged connector close-up and a pin/contact arrangement close-up; rear view only if it is shown in the reference). Every view shows the same exact product model.'
+                : 'Composition: one main product view, centred and large, filling about 75% of the frame, from an angle that shows the connectors clearly, with a gentle natural shadow.',
+            ($technical ? '5.' : '3.').' DO NOT: change the number of pins; change connector type or colour; change the number or arrangement of ports; move connectors; change size or proportions; add or remove components; substitute another hardware revision or model; invent labels, model numbers or specifications; sacrifice technical accuracy for beauty.',
+            'Keep everything (product, connectors'.($technical ? ', insets and labels' : '').') fully inside the picture with a clear white margin on every side.',
             'Background: pure plain white (#FFFFFF) all the way to every edge, seamless, with no pattern, texture, gradient, props or frame.',
-            'Do not add any text, captions, watermarks, logos or people.',
+            $technical
+                ? 'No logos, watermarks or people. Leave the bottom-right corner empty for the shop logo.'
+                : 'Do not add any text, captions, arrows, watermarks, logos or people.',
         ]));
     }
 
