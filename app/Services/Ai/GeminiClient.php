@@ -57,9 +57,9 @@ class GeminiClient
      *
      * @param  array<int, array{mime: string, data: string}>  $images  reference photos
      */
-    public function image(string $prompt, array $images = [], string $aspectRatio = '1:1'): array
+    public function image(string $prompt, array $images = [], string $aspectRatio = '1:1', ?string $models = null): array
     {
-        $response = $this->call(config('services.gemini.image_model'), [
+        $response = $this->call($models ?: config('services.gemini.image_model'), [
             'contents' => [['role' => 'user', 'parts' => $this->parts($prompt, $images)]],
             'generationConfig' => [
                 'responseModalities' => ['IMAGE'],

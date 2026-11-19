@@ -27,7 +27,10 @@ class ProductImageMaker
     public function make(string $name, string $visual = '', string $details = '', ?array $photo = null): array
     {
         try {
-            $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo), $photo ? [$photo] : []);
+            // Own model setting: 2.5 Flash Image just copies the photo and skips the line-art
+            // background, so if this model fails the free photo + logo fallback below is better.
+            $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo), $photo ? [$photo] : [],
+                models: config('services.gemini.product_image_model'));
 
             return ['path' => $this->brand($image['data'], $name, false), 'ai' => true, 'warning' => null];
         } catch (Throwable $e) {

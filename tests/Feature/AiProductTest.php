@@ -21,7 +21,7 @@ class AiProductTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['services.gemini.key' => 'test-key', 'services.gemini.text_model' => 'text-model', 'services.gemini.image_model' => 'image-model']);
+        config(['services.gemini.key' => 'test-key', 'services.gemini.text_model' => 'text-model', 'services.gemini.image_model' => 'image-model', 'services.gemini.product_image_model' => 'image-model']);
         $admin = User::factory()->create();
         $admin->forceFill(['is_admin' => true])->save();
         $this->actingAs($admin);
