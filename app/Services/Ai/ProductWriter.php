@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 /**
  * The "AI product writer" agent: from a product title (and optionally a photo)
  * it writes SEO copy, picks or creates the category / brand / laptop models,
- * and describes the product so ProductImageMaker can draw it.
+ * and gives the search words ProductImageMaker uses to find the manufacturer photo.
  */
 class ProductWriter
 {
@@ -107,7 +107,7 @@ class ProductWriter
         - category: for accessories, a shop category; for spare parts, a spare part type. Reuse an existing name EXACTLY when one fits. Only suggest a new, short, general name (e.g. "Webcams", "Cooling Fan") when none fits.
         - brand: the product's manufacturer brand, or empty.
         - compatible: spare parts only (empty array for accessories). Laptop brand, model and years/generation the part fits, only when the title or photo makes it clear. Reuse existing brand names exactly. Max 6 entries.
-        - image_prompt: an exact, technical visual description of the physical product for an image generator, so the picture matches the real part. Take it from the attached photo first, then the title, notes and specification, and keep it consistent with them. Cover: form factor and real proportions/size (e.g. 2.5" 7 mm SATA SSD, M.2 2280, DDR4 SO-DIMM, 15.6" slim 30-pin screen); every connector and port with its type, number of pins or contacts, colour, and where it sits on the product (e.g. "SATA data + power connector on the short edge", "M.2 M-key gold edge contacts with one notch on the right", "260-pin gold edge contacts with the notch off-centre", "30-pin eDP socket at the bottom right of the back", "black 4-pin fan cable with a white JST plug"); body colour, finish and material; mounting tabs, screw holes, labels' position (not their text) and cables; and the camera angle that shows the connectors clearly. Never add or remove ports, pins or features. Do not describe text or logos on it.
+        - image_search: the exact words to find the manufacturer's original photo of THIS product with a web search: brand + exact model name + part number / model code (e.g. "Samsung 870 EVO 500GB MZ-77E500", "Dell 0KN4DH keyboard Inspiron 15 3520"). Use part numbers from the title, notes or photo; never invent one. No extra words.
         - review_notes: one or two short sentences telling the shop staff what to double-check (e.g. a guessed spec). Empty if nothing.
         Do not invent technical specifications you are not confident about; leave them out instead.
         TXT;
@@ -136,9 +136,9 @@ class ProductWriter
                     'properties' => ['brand' => $str, 'model' => $str, 'years' => $str],
                     'required' => ['brand', 'model', 'years'],
                 ]],
-                'image_prompt' => $str, 'review_notes' => $str,
+                'image_search' => $str, 'review_notes' => $str,
             ],
-            'required' => ['type', 'name', 'summary', 'description', 'meta_title', 'meta_description', 'focus_keyword', 'image_alt', 'faqs', 'specification', 'category', 'image_prompt'],
+            'required' => ['type', 'name', 'summary', 'description', 'meta_title', 'meta_description', 'focus_keyword', 'image_alt', 'faqs', 'specification', 'category', 'image_search'],
         ];
     }
 
@@ -185,7 +185,7 @@ class ProductWriter
             'category' => $s('category', 100),
             'brand' => $s('brand', 60),
             'compatible' => $compatible,
-            'image_prompt' => $s('image_prompt', 1500),
+            'image_search' => $s('image_search', 200),
             'review_notes' => $s('review_notes', 400),
         ];
     }

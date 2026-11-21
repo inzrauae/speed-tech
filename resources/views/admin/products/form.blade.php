@@ -169,12 +169,11 @@
           @if ($product->image)<label class="check" style="margin-top:10px"><input type="checkbox" name="remove_image" value="1"> Remove current image</label>@endif
           @if ($product->exists)
             <details class="ai-image" @if ($product->ai_draft) open @endif>
-              <summary><svg class="icon"><use href="#icon-bolt"/></svg>New AI image with logo</summary>
-              <label class="field">Image details <small>(optional)</small><textarea name="image_details" form="aiImageForm" rows="3" maxlength="1500" placeholder="e.g. 30-pin eDP socket at the bottom right, show the back with the connector visible"></textarea></label>
-              <label class="field">Style<select name="image_style" form="aiImageForm"><option value="photo">Product photo (clean, no text)</option><option value="technical">Technical sheet (close-ups, arrows, spec labels)</option></select></label>
-              <label class="field">Reference photo <small>(optional)</small><input type="file" name="photo" form="aiImageForm" accept="image/jpeg,image/png,image/webp"></label>
-              @if ($product->image)<label class="check"><input type="checkbox" name="use_current" value="1" form="aiImageForm" checked> Use the current image as reference</label>@endif
-              <button class="btn sm" type="submit" form="aiImageForm" style="margin-top:10px">Generate image</button>
+              <summary><svg class="icon"><use href="#icon-bolt"/></svg>Manufacturer photo with logo</summary>
+              <p class="help" style="margin:8px 0 0">Finds the original photo of this exact product online and puts it in the SpeedTech layout. Nothing is drawn by AI.</p>
+              <label class="field">Page or photo link <small>(optional) — if the search picks the wrong photo, paste the right one</small><input type="url" name="image_url" form="aiImageForm" maxlength="2000" placeholder="https://www.manufacturer.com/product-page"></label>
+              <label class="field">Or use my own photo <small>(optional)</small><input type="file" name="photo" form="aiImageForm" accept="image/jpeg,image/png,image/webp"></label>
+              <button class="btn sm" type="submit" form="aiImageForm" style="margin-top:10px">Get photo</button>
             </details>
             <a class="btn sm fb-ad-btn" href="{{ route('admin.fb-ad.create', $product) }}"><svg class="icon"><use href="#icon-tag"/></svg>Create FB ad post</a>
           @endif
@@ -191,7 +190,7 @@
   @if ($product->exists)
     {{-- Targets of the AI buttons above (inputs use form="…" because forms cannot nest). --}}
     <form method="post" action="{{ route('admin.ai.text', $product) }}" id="aiTextForm" class="js-ai" data-confirm="Replace the summary, description and SEO text with a new AI version? Unsaved changes on this page will be lost.">@csrf</form>
-    <form method="post" action="{{ route('admin.ai.image', $product) }}" id="aiImageForm" class="js-ai" enctype="multipart/form-data" data-confirm="Create a new AI image? It replaces the current image. Unsaved changes on this page will be lost.">@csrf</form>
+    <form method="post" action="{{ route('admin.ai.image', $product) }}" id="aiImageForm" class="js-ai" enctype="multipart/form-data" data-confirm="Get a new product photo? It replaces the current image. Unsaved changes on this page will be lost.">@csrf</form>
 
     <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm="Delete “{{ $product->name }}” permanently? Past orders keep their copy of the name and price." style="margin-top:24px">
       @csrf @method('DELETE')

@@ -35,9 +35,6 @@ return [
         'text_model' => env('GEMINI_TEXT_MODEL', 'gemini-3.5-flash,gemini-3.8-flash'),
         // Facebook ad pictures: cheapest image model.
         'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
-        // Product photos (AI writer): cheapest model. The AI draws only the product on white;
-        // the branded line art is added by ProductImageMaker, so it shows with any model.
-        'product_image_model' => env('GEMINI_PRODUCT_IMAGE_MODEL', 'gemini-2.5-flash-image'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 90),
         'image_timeout' => (int) env('GEMINI_IMAGE_TIMEOUT', 180),
     ],

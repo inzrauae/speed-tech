@@ -18,7 +18,8 @@ use Throwable;
 
 /**
  * AI product writer: title (+ optional photo) → hidden draft product with SEO copy,
- * a branded image and any missing category / brand / laptop model created.
+ * the manufacturer's photo in the SpeedTech layout and any missing category / brand /
+ * laptop model created. Product images are never drawn by AI (it gets ports and pins wrong).
  * Staff review the draft on the normal product form and publish it there.
  */
 class AiProductController extends Controller
@@ -40,9 +41,8 @@ class AiProductController extends Controller
             'type' => ['nullable', Rule::in(array_keys(Product::TYPES))],
             'photo' => ['nullable', 'required_if:image_mode,photo', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'notes' => ['nullable', 'string', 'max:1500'],
-            'image_mode' => ['required', Rule::in(['ai', 'photo', 'none'])],
-            'image_details' => ['nullable', 'string', 'max:1500'],
-            'image_style' => ['nullable', Rule::in([ProductImageMaker::STYLE_PHOTO, ProductImageMaker::STYLE_TECHNICAL])],
+            'image_mode' => ['required', Rule::in(['web', 'photo', 'none'])],
+            'image_url' => ['nullable', 'url:http,https', 'max:2000'],
         ]);
         @set_time_limit(300);
 
@@ -75,15 +75,17 @@ class AiProductController extends Controller
         $warnings = [];
         if ($data['image_mode'] !== 'none') {
             try {
-                $result = $data['image_mode'] === 'ai'
-                    ? $this->images->make($product->name, $draft['image_prompt'], (string) ($data['image_details'] ?? ''), $photo, $this->specs($product, $data['notes'] ?? null), $data['image_style'] ?? ProductImageMaker::STYLE_PHOTO)
-                    : ['path' => $this->images->fromPhoto($photo, $product->name), 'warning' => null];
-                $product->forceFill(['image' => $result['path']])->save();
-                if ($result['warning']) {
-                    $warnings[] = $result['warning'];
-                }
+                $path = $data['image_mode'] === 'web'
+                    ? $this->images->fromWeb($product->name, (string) $product->brand, $draft['image_search'], $this->specs($product, $data['notes'] ?? null), $data['image_url'] ?? null)['path']
+                    : $this->images->fromPhoto($photo, $product->name);
+                $product->forceFill(['image' => $path])->save();
             } catch (Throwable $e) {
                 $warnings[] = 'No image yet: '.$e->getMessage();
+                // The shop's own photo is better than nothing.
+                if ($photo && $data['image_mode'] === 'web') {
+                    $product->forceFill(['image' => $this->images->fromPhoto($photo, $product->name)])->save();
+                    $warnings[] = 'Your photo was used with the logo instead.';
+                }
             }
         }
 
@@ -97,31 +99,38 @@ class AiProductController extends Controller
             ]);
     }
 
-    /** New image for an existing product, with optional extra details / new reference photo. */
+    /**
+     * New image for an existing product: the manufacturer's photo found online
+     * (or from a link staff paste), or the shop's own photo, in the SpeedTech layout.
+     */
     public function image(Request $request, Product $product): RedirectResponse
     {
         $data = $request->validate([
-            'image_details' => ['nullable', 'string', 'max:1500'],
-            'image_style' => ['nullable', Rule::in([ProductImageMaker::STYLE_PHOTO, ProductImageMaker::STYLE_TECHNICAL])],
+            'image_url' => ['nullable', 'url:http,https', 'max:2000'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
-            'use_current' => ['nullable', 'boolean'],
         ]);
         @set_time_limit(300);
 
-        $photo = $this->photo($request->file('photo'))
-            ?? ($request->boolean('use_current') ? $this->currentImage($product) : null);
-
         try {
-            $result = $this->images->make($product->name, (string) $product->summary, (string) ($data['image_details'] ?? ''), $photo, $this->specs($product), $data['image_style'] ?? ProductImageMaker::STYLE_PHOTO);
+            if ($photo = $this->photo($request->file('photo'))) {
+                [$path, $source] = [$this->images->fromPhoto($photo, $product->name), null];
+            } else {
+                $query = trim(implode(' ', array_filter([
+                    $product->brand && ! Str::contains($product->name, $product->brand, true) ? $product->brand : null,
+                    $product->name,
+                    $product->oem_part_number,
+                ])));
+                ['path' => $path, 'source' => $source] = $this->images->fromWeb($product->name, (string) $product->brand, $query, $this->specs($product), $data['image_url'] ?? null);
+            }
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
 
         $old = $product->image;
-        $product->forceFill(['image' => $result['path']])->save();
+        $product->forceFill(['image' => $path])->save();
         ProductController::deleteUploadedImage($old);
 
-        return back()->with($result['warning'] ? 'error' : 'status', $result['warning'] ?? 'New image created. Check it, then save the product.');
+        return back()->with('status', 'New image ready'.($source ? ' (photo from '.parse_url($source, PHP_URL_HOST).')' : '').'. Check it, then save the product.');
     }
 
     /** Rewrite the SEO copy of an existing product. */
@@ -154,7 +163,7 @@ class AiProductController extends Controller
         return back()->with('status', 'Description, FAQs and SEO text rewritten. Review them, then save.'.($draft['review_notes'] ? ' AI note: '.$draft['review_notes'] : ''));
     }
 
-    /** The product's technical facts for the image prompt (connector, pins, size…). */
+    /** The product's technical facts, so the right model's photo is picked (connector, pins, size…). */
     private function specs(Product $product, ?string $notes = null): string
     {
         return implode('; ', array_filter([
@@ -172,7 +181,7 @@ class AiProductController extends Controller
         return $file ? ['mime' => $file->getMimeType() ?: 'image/jpeg', 'data' => $file->get()] : null;
     }
 
-    /** The product's own uploaded image, as a reference for the AI. */
+    /** The product's own uploaded image, for the AI writer to look at. */
     private function currentImage(Product $product): ?array
     {
         if (! $product->image || Str::startsWith($product->image, ['http://', 'https://'])) {

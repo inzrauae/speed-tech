@@ -34,29 +34,22 @@
         <section class="card">
           <h2>2. Image</h2>
           <div class="form-grid" style="grid-template-columns:1fr">
-            <label class="field">Photo of the product <small>(optional) — a quick phone photo is fine. The AI reads it and uses it as the reference for a new studio image.</small>
-              <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" id="photoInput">
-            </label>
-            <img class="image-preview" id="photoPreview" alt="" hidden>
-
-            <div class="field">What image should be used?
+            <div class="field">Where should the image come from?
               <div style="display:grid;gap:8px;margin-top:8px">
-                <label class="check"><input type="radio" name="image_mode" value="ai" @checked(old('image_mode', 'ai') === 'ai')> Generate a unique AI image with the SpeedTech logo <small class="help" style="margin:0">(from the photo if attached, otherwise from the title)</small></label>
-                <label class="check"><input type="radio" name="image_mode" value="photo" @checked(old('image_mode') === 'photo')> Use my photo as it is, on white with the logo</label>
+                <label class="check"><input type="radio" name="image_mode" value="web" @checked(old('image_mode', 'web') === 'web')> Find the manufacturer's original photo online <small class="help" style="margin:0">(real photo, so ports and pins are exact — put in the SpeedTech layout with the logo)</small></label>
+                <label class="check"><input type="radio" name="image_mode" value="photo" @checked(old('image_mode') === 'photo')> Use my photo, in the SpeedTech layout with the logo</label>
                 <label class="check"><input type="radio" name="image_mode" value="none" @checked(old('image_mode') === 'none')> No image for now</label>
               </div>
             </div>
 
-            <div class="field" id="styleField">AI image style
-              <div style="display:grid;gap:8px;margin-top:8px">
-                <label class="check"><input type="radio" name="image_style" value="photo" @checked(old('image_style', 'photo') === 'photo')> Product photo <small class="help" style="margin:0">(clean, no text, best for the shop)</small></label>
-                <label class="check"><input type="radio" name="image_style" value="technical" @checked(old('image_style') === 'technical')> Technical sheet <small class="help" style="margin:0">(connector close-ups, arrows and spec labels from the specification)</small></label>
-              </div>
-            </div>
-
-            <label class="field" id="detailsField">Image details <small>(optional) — describe the picture you want: angle, colour, what to show, background, props</small>
-              <textarea name="image_details" rows="3" maxlength="1500" placeholder="e.g. 2.5&quot; SATA SSD, black metal case, SATA data + power connector on the short edge, show the connector side at a 45° angle">{{ old('image_details') }}</textarea>
+            <label class="field" id="urlField">Manufacturer page or photo link <small>(optional) — paste it if you already know the right page; otherwise it is searched for you</small>
+              <input type="url" name="image_url" value="{{ old('image_url') }}" maxlength="2000" placeholder="https://www.manufacturer.com/product-page">
             </label>
+
+            <label class="field">Photo of the product <small>(optional) — the AI reads it to write the text (part numbers, connectors). Used as the image only with “Use my photo”, or if no manufacturer photo is found.</small>
+              <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" id="photoInput">
+            </label>
+            <img class="image-preview" id="photoPreview" alt="" hidden>
           </div>
         </section>
       </div>
@@ -67,7 +60,7 @@
           <ol class="help" style="padding-left:18px;margin:0">
             <li>The AI writes the name, summary, SEO description, meta title and meta description.</li>
             <li>It picks the right category, part type, brand and compatible laptop models, and <b>creates any that are missing</b>.</li>
-            <li>It makes a new product image and stamps the SpeedTech logo on it.</li>
+            <li>It finds the manufacturer's original product photo online and puts it in the SpeedTech layout with the logo. No image is drawn by AI, so connectors and pins are always the real ones.</li>
             <li>Everything is saved as a <b>hidden draft</b>. You review it, add price and stock, then tick “Visible in the store” to publish.</li>
           </ol>
         </section>
@@ -75,7 +68,7 @@
         <div class="form-actions">
           <button class="btn primary" type="submit" id="aiSubmit" @disabled(! $configured)><svg class="icon"><use href="#icon-bolt"/></svg>Write product draft</button>
         </div>
-        <p class="help" id="aiWait" hidden style="margin-top:10px">Writing and drawing… this can take up to a minute. Please keep this page open.</p>
+        <p class="help" id="aiWait" hidden style="margin-top:10px">Writing and finding the photo… this can take up to a minute. Please keep this page open.</p>
 
         @if ($drafts->isNotEmpty())
           <section class="card" style="margin-top:18px">
@@ -97,9 +90,8 @@
 <script>
   (() => {
     const form = document.getElementById('aiForm');
-    const details = document.getElementById('detailsField');
-    const style = document.getElementById('styleField');
-    const sync = () => { details.hidden = style.hidden = form.querySelector('input[name="image_mode"]:checked')?.value !== 'ai'; };
+    const url = document.getElementById('urlField');
+    const sync = () => { url.hidden = form.querySelector('input[name="image_mode"]:checked')?.value !== 'web'; };
     form.addEventListener('change', e => { if (e.target.name === 'image_mode') sync(); });
     sync();
 

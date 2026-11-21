@@ -6,123 +6,94 @@ use GdImage;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use RuntimeException;
-use Throwable;
 
 /**
- * Creates a unique, square product image with the SpeedTech logo.
- * The picture comes from Gemini; the logo is stamped on afterwards with GD
- * so it is always the real, sharp logo (AI models garble logos and text).
+ * Square SpeedTech product images from a REAL photo: the manufacturer's original
+ * photo found online, or the shop's own photo. Nothing is drawn by AI, so the ports,
+ * pins and connectors are always the real ones. The photo is put in the shop layout:
+ * white square, product centred and enlarged, branded line art and the logo.
  */
 class ProductImageMaker
 {
     public const DIR = 'uploads/products';
 
-    /** Clean shop photo (no text) or a technical sheet with callouts and close-ups. */
-    public const STYLE_PHOTO = 'photo';
-    public const STYLE_TECHNICAL = 'technical';
     private const SIZE = 1200;
     /** Share of the square the product (with its shadow) takes up on its longest side. */
     private const FILL = 0.8;
+    /** A photo whose border is at least this white counts as "on white" and is trimmed and enlarged. */
+    private const WHITE_BACKGROUND = 0.85;
 
-    public function __construct(private GeminiClient $gemini) {}
+    public function __construct(private ManufacturerPhotoFinder $finder) {}
 
     /**
-     * @param  array{mime: string, data: string}|null  $photo  reference photo of the real product
-     * @return array{path: string, ai: bool, warning: ?string}  path relative to public/
+     * Find the manufacturer's photo online and put it in the shop layout.
+     *
+     * @return array{path: string, source: string}  path relative to public/
      */
-    public function make(string $name, string $visual = '', string $details = '', ?array $photo = null, string $specs = '', string $style = self::STYLE_PHOTO): array
+    public function fromWeb(string $name, string $brand = '', string $query = '', string $specs = '', ?string $url = null): array
     {
-        try {
-            // Own model setting (cheapest image model by default). The AI only draws the product
-            // on plain white; the line art is added by brand(), so every model gives the same look.
-            $image = $this->gemini->image($this->prompt($name, $visual, $details, (bool) $photo, $specs, $style), $photo ? [$photo] : [],
-                models: config('services.gemini.product_image_model'));
+        $photo = $this->finder->find($name, $brand, $query, $specs, $url);
 
-            return ['path' => $this->brand($image['data'], $name, false), 'ai' => true, 'warning' => null];
-        } catch (Throwable $e) {
-            // Without AI, still give a usable branded image from the photo the admin attached.
-            if ($photo) {
-                return ['path' => $this->brand($photo['data'], $name, true), 'ai' => false,
-                    'warning' => 'AI image not generated: '.$e->getMessage().' Your photo was used with the logo instead.'];
-            }
-
-            throw $e;
-        }
+        return ['path' => $this->brand($photo['data'], $name), 'source' => $photo['source']];
     }
 
-    /** The admin's own photo on a white square with the logo (no AI). */
+    /** The admin's own photo in the shop layout. */
     public function fromPhoto(array $photo, string $name): string
     {
-        return $this->brand($photo['data'], $name, true);
+        return $this->brand($photo['data'], $name);
     }
 
-    private function prompt(string $name, string $visual, string $details, bool $hasPhoto, string $specs = '', string $style = self::STYLE_PHOTO): string
+    /**
+     * Fit the picture on a white square, stamp the logo, save as JPEG.
+     * Photos on white are trimmed and enlarged to fill the square, with the line art
+     * behind the product; other photos are fitted inside, with the line art around them.
+     */
+    private function brand(string $bytes, string $name): string
     {
-        $technical = $style === self::STYLE_TECHNICAL;
-
-        return implode("\n", array_filter([
-            'ROLE: You are a professional computer hardware technical illustrator and product visualisation specialist.',
-            $technical
-                ? "TASK: Create a high-quality technical product presentation image of: {$name}. It highlights the important specifications and physical features of the actual hardware."
-                : "TASK: Create a high-quality, professional e-commerce product photograph of: {$name}.",
-            $specs ? "Supplied specification (the only facts you may use): {$specs}" : null,
-            $visual ? "What it looks like: {$visual}" : null,
-            $hasPhoto
-                ? 'REFERENCE: The attached photo is the primary and authoritative reference for the real product. Do not return it as it is: re-create it as a new, sharper, better-lit image of the SAME product. Remove hands, clutter, price stickers, badges added on top of the photo (like "Genuine" or "Original"), and any existing watermarks or shop logos.'
-                : null,
-            $details ? "Shop's instructions for this image (follow these closely): {$details}" : null,
-            '1. STRICT PHYSICAL ACCURACY (highest priority). Do not redesign, simplify, replace, assume or invent any physical feature. Preserve exactly'.($hasPhoto ? ' as in the reference' : ' as given in the specification').': the product model, form factor, dimensions and proportions; the number, position, orientation and shape of every port and connector; connector types (SATA, M.2, NVMe, USB, HDMI, DisplayPort, LVDS, eDP and others); the exact number of pins and contacts, their spacing, arrangement and orientation; connector colours (black, white, blue, gold, yellow and others); keying, notches, grooves, locking clips and cutouts; PCB layout, components and mounting holes; RAM notch position and gold contact layout; SSD/HDD SATA power and data layout, M.2 edge connector and key notch; laptop screen connector location, cable position, pin count and type; screws, brackets, hinges and labels. Never draw a visually similar but technically different component.',
-            '2. VISUAL ENHANCEMENT without changing the hardware: sharp, high resolution, clear; professional lighting and contrast with realistic surface detail and materials; photorealistic product photography or photorealistic 3D render; accurate proportions.',
-            $technical
-                ? '3. TECHNICAL CALLOUTS: add clean, thin arrows, circles and callout labels pointing at the important features (interface, connector type, number of pins or contacts, port configuration, capacity, speed, dimensions). Labels may ONLY use words and numbers from the supplied specification, copied exactly and spelled correctly, in a clean sans-serif font. If a detail is not in the specification or cannot be identified confidently, leave it unlabelled. Never write model numbers, brand names or figures that were not supplied.'
-                : null,
-            $technical
-                ? '4. MULTI-VIEW LAYOUT: a large main product view plus up to two small inset close-ups in neat rounded frames (e.g. an enlarged connector close-up and a pin/contact arrangement close-up; rear view only if it is shown in the reference). Every view shows the same exact product model.'
-                : 'Composition: one main product view, centred and large, filling about 75% of the frame, from an angle that shows the connectors clearly, with a gentle natural shadow.',
-            ($technical ? '5.' : '3.').' DO NOT: change the number of pins; change connector type or colour; change the number or arrangement of ports; move connectors; change size or proportions; add or remove components; substitute another hardware revision or model; invent labels, model numbers or specifications; sacrifice technical accuracy for beauty.',
-            'Keep everything (product, connectors'.($technical ? ', insets and labels' : '').') fully inside the picture with a clear white margin on every side.',
-            'Background: pure plain white (#FFFFFF) all the way to every edge, seamless, with no pattern, texture, gradient, props or frame.',
-            $technical
-                ? 'No logos, watermarks or people. Leave the bottom-right corner empty for the shop logo.'
-                : 'Do not add any text, captions, arrows, watermarks, logos or people.',
-        ]));
-    }
-
-    /** Fit the picture on a white square, stamp the logo, save as JPEG. */
-    private function brand(string $bytes, string $name, bool $contain): string
-    {
-        $src = @imagecreatefromstring($bytes);
-        if (! $src) {
-            throw new RuntimeException('The image could not be read.');
-        }
+        $src = $this->flatten($bytes);
+        $onWhite = ManufacturerPhotoFinder::whiteBorder($src) >= self::WHITE_BACKGROUND;
 
         $canvas = imagecreatetruecolor(self::SIZE, self::SIZE);
         imagefill($canvas, 0, 0, imagecolorallocate($canvas, 255, 255, 255));
-        if ($contain) {
-            $this->drawLineArt($canvas); // shows in the margin around the admin's photo
+        if (! $onWhite) {
+            $this->drawLineArt($canvas); // shows in the margin around the photo
         }
 
         [$w, $h] = [imagesx($src), imagesy($src)];
-        // AI images are on plain white: cut away the empty white and enlarge the product so every
-        // product fills the same share of the square. Plain photos: fit inside with a margin.
-        [$sx, $sy, $sw, $sh] = $contain ? [0, 0, $w, $h] : ($this->contentBox($src) ?? [0, 0, $w, $h]);
-        $box = $contain ? self::SIZE * 0.86 : self::SIZE * self::FILL;
-        $scale = min($box / $sw, $box / $sh, $contain ? INF : 4);
+        [$sx, $sy, $sw, $sh] = $onWhite ? ($this->contentBox($src) ?? [0, 0, $w, $h]) : [0, 0, $w, $h];
+        $box = $onWhite ? self::SIZE * self::FILL : self::SIZE * 0.86;
+        $scale = min($box / $sw, $box / $sh, 4);
         [$dw, $dh] = [(int) round($sw * $scale), (int) round($sh * $scale)];
         imagecopyresampled($canvas, $src, (int) ((self::SIZE - $dw) / 2), (int) ((self::SIZE - $dh) / 2), $sx, $sy, $dw, $dh, $sw, $sh);
         imagedestroy($src);
 
-        if (! $contain) {
+        if ($onWhite) {
             $this->addLineArtBehind($canvas);
         }
         $this->stampLogo($canvas);
 
         $file = Str::slug(Str::limit($name, 60, '')).'-'.Str::lower(Str::random(6)).'.jpg';
         File::ensureDirectoryExists(public_path(self::DIR));
-        imagejpeg($canvas, public_path(self::DIR.'/'.$file), 88);
+        imagejpeg($canvas, public_path(self::DIR.'/'.$file), 90);
         imagedestroy($canvas);
 
         return self::DIR.'/'.$file;
+    }
+
+    /** Decode the photo onto white, so transparent PNG/WebP backgrounds become white. */
+    private function flatten(string $bytes): GdImage
+    {
+        $img = @imagecreatefromstring($bytes);
+        if (! $img) {
+            throw new RuntimeException('The image could not be read.');
+        }
+        $flat = imagecreatetruecolor(imagesx($img), imagesy($img));
+        imagefill($flat, 0, 0, imagecolorallocate($flat, 255, 255, 255));
+        imagealphablending($flat, true);
+        imagecopy($flat, $img, 0, 0, 0, 0, imagesx($img), imagesy($img));
+        imagedestroy($img);
+
+        return $flat;
     }
 
     /**
@@ -214,7 +185,7 @@ class ProductImageMaker
     }
 
     /**
-     * Put the line art on an AI picture's white background only: the white area is found by
+     * Put the line art on a photo's white background only: the white area is found by
      * flood-filling from the edges, so the product (even a white box inside it) is never drawn over.
      */
     private function addLineArtBehind(GdImage $canvas): void
