@@ -338,6 +338,75 @@ class AiProductTest extends TestCase
         $this->assertNull($product->refresh()->image);
     }
 
+    public function test_searched_photos_from_shops_are_never_used(): void
+    {
+        $this->fakeGemini($this->draft(['compatible' => []]), found: ['https://www.some-laptop-shop.lk/img/kb-3520.png']);
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $product = Product::sole();
+
+        $this->post(route('admin.ai.image', $product))->assertSessionHas('error', fn ($e) => str_contains($e, 'official Dell website'));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'some-laptop-shop.lk'));
+        $this->assertNull($product->refresh()->image);
+    }
+
+    public function test_the_official_domain_named_by_the_search_is_accepted(): void
+    {
+        // The brand alone does not match the host, so only the OFFICIAL line lets this photo in.
+        $this->fakeGemini($this->draft(['compatible' => []]), found: ['OFFICIAL: dell.com', 'https://www.dell.com/img/kb-3520.png']);
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $product = Product::sole();
+        $product->forceFill(['brand' => 'Acme'])->save();
+
+        $this->post(route('admin.ai.image', $product))->assertSessionHas('status', fn ($s) => str_contains($s, 'www.dell.com'));
+    }
+
+    public function test_image_layout_product_at_70_percent_with_logo_bottom_left(): void
+    {
+        $this->fakeGemini($this->draft(['compatible' => []]));
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'web']);
+        $img = imagecreatefromjpeg(public_path(Product::sole()->image));
+
+        // The 400×200 dark product fills 70% of the width: 840 px, centred.
+        $dark = fn ($x, $y) => (imagecolorat($img, $x, $y) & 0xFF) < 80;
+        $this->assertTrue($dark(600, 600));
+        $this->assertTrue($dark(215, 600) && $dark(985, 600));
+        $this->assertFalse($dark(170, 600) || $dark(1030, 600));
+
+        // The logo (red) is in the bottom-left corner, not the bottom-right.
+        $red = function ($x0, $x1) use ($img) {
+            for ($x = $x0; $x < $x1; $x += 2) {
+                for ($y = 1080; $y < 1170; $y += 2) {
+                    $c = imagecolorat($img, $x, $y);
+                    if (($c >> 16 & 255) > 180 && ($c >> 8 & 255) < 90) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        };
+        $this->assertTrue($red(30, 360));
+        $this->assertFalse($red(840, 1170));
+    }
+
+    public function test_own_photo_is_retouched_onto_a_white_background(): void
+    {
+        $img = imagecreatetruecolor(800, 600);
+        imagefill($img, 0, 0, imagecolorallocate($img, 205, 195, 175)); // dull, warm backdrop
+        imagefilledrectangle($img, 250, 200, 550, 400, imagecolorallocate($img, 30, 30, 30));
+        ob_start();
+        imagejpeg($img, null, 95);
+        $photo = UploadedFile::fake()->createWithContent('kb.jpg', ob_get_clean());
+
+        $this->fakeGemini($this->draft(['compatible' => []]));
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'photo', 'photo' => $photo]);
+        $out = imagecreatefromjpeg(public_path(Product::sole()->image));
+
+        // Backdrop next to the product is now white and neutral.
+        $c = imagecolorsforindex($out, imagecolorat($out, 600, 170));
+        $this->assertGreaterThanOrEqual(245, min($c['red'], $c['green'], $c['blue']));
+    }
+
     public function test_links_to_private_addresses_are_never_fetched(): void
     {
         $this->fakeGemini($this->draft(['compatible' => []]));

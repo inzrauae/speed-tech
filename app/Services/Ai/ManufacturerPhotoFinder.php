@@ -11,9 +11,10 @@ use Throwable;
 
 /**
  * Finds the manufacturer's original product photo on the web: Google Search (through
- * Gemini) finds the official product page, the photo is taken from that page
- * (og:image, product data, gallery), and the AI only checks which photo shows
- * exactly this product. No picture is generated, so ports and pins stay real.
+ * Gemini) finds the product page on the manufacturer's OFFICIAL website, the photo is
+ * taken from that page (og:image, product data, gallery), and the AI only checks which
+ * photo shows exactly this product. Photos from shops and other sites are never used
+ * (unless staff paste the link). No picture is generated, so ports and pins stay real.
  */
 class ManufacturerPhotoFinder
 {
@@ -40,12 +41,17 @@ class ManufacturerPhotoFinder
      */
     public function find(string $name, string $brand = '', string $query = '', string $specs = '', ?string $url = null): array
     {
-        $pages = $url ? [$url] : $this->searchPages($query ?: $name, $name, $specs);
+        $brand = $brand ?: Str::before(trim($name), ' ');
+        [$pages, $official] = $url ? [[$url], []] : $this->searchPages($query ?: $name, $name, $brand, $specs);
         $this->deadline = microtime(true) + self::BUDGET;
 
         $candidates = [];
         foreach (array_slice(array_unique($pages), 0, self::MAX_PAGES) as $page) {
             foreach ($this->imagesOn($page, $name) as $image) {
+                // Searched photos must come from the manufacturer's own website (checked after redirects).
+                if (! $url && ! $this->isOfficial($image['page'], $brand, $official)) {
+                    continue;
+                }
                 $candidates[$image['url']] = $image;
                 if (count($candidates) >= self::MAX_IMAGES) {
                     break 2;
@@ -56,13 +62,13 @@ class ManufacturerPhotoFinder
         $photos = [];
         foreach ($candidates as $candidate) {
             if ($photo = $this->download($candidate['url'])) {
-                $photos[] = $photo + ['source' => $candidate['page'], 'score' => $this->score($photo, $candidate, $brand ?: Str::before(trim($name), ' '))];
+                $photos[] = $photo + ['source' => $candidate['page'], 'score' => $this->score($photo, $candidate, $brand)];
             }
         }
         if (! $photos) {
             throw new RuntimeException($url
                 ? 'No usable product photo was found at that link. Paste the direct image link, or upload the photo.'
-                : 'No manufacturer photo was found online for this product. Paste a link to the product page, or upload a photo.');
+                : 'No manufacturer photo was found on the official '.$brand.' website. Paste a link to the product page, or upload a photo (it is retouched for you).');
         }
 
         usort($photos, fn ($a, $b) => $b['score'] <=> $a['score']);
@@ -72,23 +78,63 @@ class ManufacturerPhotoFinder
         return ['mime' => $best['mime'], 'data' => $best['data'], 'source' => $best['source']];
     }
 
-    /** @return list<string> product page or image URLs, best first */
-    private function searchPages(string $query, string $name, string $specs): array
+    /**
+     * @return array{list<string>, list<string>} product page or image URLs (best first),
+     *                                           and the manufacturer's official domains
+     */
+    private function searchPages(string $query, string $name, string $brand, string $specs): array
     {
         $result = $this->gemini->search(implode("\n", array_filter([
             "Find the original manufacturer product photo for this exact product: {$query}",
             $query !== $name ? "Shop's product name: {$name}" : null,
+            $brand ? "Manufacturer: {$brand}" : null,
             $specs ? "Specification: {$specs}" : null,
-            'Search the web. List the pages that show this EXACT model (same part number / variant, same connectors), best first:',
-            "1) the product page on the manufacturer's own official website; 2) the manufacturer's support or datasheet page; 3) large well-known retailers (e.g. Amazon, Newegg, B&H) only if the manufacturer has no page.",
-            'If you found direct links to the product photo files (.jpg, .png, .webp), list them first.',
-            'Reply with URLs only, one per line, at most 6. No other text.',
+            "Search the web. Use ONLY the manufacturer's own official website (product page, support page, datasheet or its image server). Never shops, marketplaces, resellers, forums or review sites.",
+            'List the official pages that show this EXACT model (same part number / variant, same connectors), best first. If you found direct links to the product photo files (.jpg, .png, .webp) on the official site, list them first.',
+            "First line: OFFICIAL: followed by the manufacturer's official website domain(s), comma separated (e.g. OFFICIAL: dell.com).",
+            'Then the URLs only, one per line, at most 6. No other text.',
         ])));
 
-        preg_match_all('#https?://[^\s<>"\'\)\]]+#i', $result['text'], $m);
+        $official = [];
+        if (preg_match('/OFFICIAL:\s*([^\n]+)/i', $result['text'], $o)) {
+            foreach (preg_split('/[\s,]+/', Str::lower($o[1])) as $d) {
+                $d = preg_replace('#^(https?://)?(www\.)?#', '', $d);
+                $d = rtrim(Str::before($d, '/'), '.');
+                if (preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/', $d)) {
+                    $official[] = $d;
+                }
+            }
+        }
+        $text = preg_replace('/OFFICIAL:[^\n]*/i', '', $result['text']);
+        preg_match_all('#https?://[^\s<>"\'\)\]]+#i', $text, $m);
         $urls = array_map(fn ($u) => rtrim($u, '.,;'), $m[0]);
 
-        return array_values(array_unique([...$urls, ...$result['sources']]));
+        return [array_values(array_unique([...$urls, ...$result['sources']])), $official];
+    }
+
+    /**
+     * Is the page on the manufacturer's own website? Its host must be one of the official
+     * domains the search named (or a subdomain of one), or have the brand as one of its
+     * parts (dell.com, i.dell.com, semiconductor.samsung.com, westerndigital.com).
+     */
+    private function isOfficial(string $page, string $brand, array $official): bool
+    {
+        $host = Str::lower(preg_replace('/^www\./i', '', (string) parse_url($page, PHP_URL_HOST)));
+        if ($host === '') {
+            return false;
+        }
+        foreach ($official as $domain) {
+            if ($host === $domain || str_ends_with($host, '.'.$domain)) {
+                return true;
+            }
+        }
+        $slug = Str::lower(preg_replace('/[^a-z0-9]/i', '', $brand));
+        if (strlen($slug) < 2) {
+            return false;
+        }
+        $labels = array_slice(explode('.', $host), 0, -1); // without the top-level domain
+
+        return collect($labels)->contains(fn ($l) => $l === $slug || (strlen($slug) >= 4 && str_contains($l, $slug)));
     }
 
     /**

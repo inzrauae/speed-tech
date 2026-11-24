@@ -9,24 +9,27 @@ use RuntimeException;
 
 /**
  * Square SpeedTech product images from a REAL photo: the manufacturer's original
- * photo found online, or the shop's own photo. Nothing is drawn by AI, so the ports,
- * pins and connectors are always the real ones. The photo is put in the shop layout:
- * white square, product centred and enlarged, branded line art and the logo.
+ * photo from its official website, or the shop's own photo (retouched first).
+ * Nothing is drawn by AI, so the ports, pins and connectors are always the real ones.
+ * Layout: white square, product at 70% of the square, a faint SpeedTech logo watermark
+ * across the background and the website logo in the bottom-left corner.
  */
 class ProductImageMaker
 {
     public const DIR = 'uploads/products';
 
     private const SIZE = 1200;
-    /** Share of the square the product (with its shadow) takes up on its longest side. */
-    private const FILL = 0.8;
-    /** A photo whose border is at least this white counts as "on white" and is trimmed and enlarged. */
+    /** Share of the square the product takes up on its longest side. */
+    private const FILL = 0.7;
+    /** A photo whose border is at least this white counts as "on white" and is trimmed to the product. */
     private const WHITE_BACKGROUND = 0.85;
+    /** How strongly the watermark logos show (0 = invisible, 1 = full colour). */
+    private const WATERMARK_STRENGTH = 0.07;
 
     public function __construct(private ManufacturerPhotoFinder $finder) {}
 
     /**
-     * Find the manufacturer's photo online and put it in the shop layout.
+     * Find the manufacturer's photo on its official website and put it in the shop layout.
      *
      * @return array{path: string, source: string}  path relative to public/
      */
@@ -34,41 +37,40 @@ class ProductImageMaker
     {
         $photo = $this->finder->find($name, $brand, $query, $specs, $url);
 
-        return ['path' => $this->brand($photo['data'], $name), 'source' => $photo['source']];
+        return ['path' => $this->brand($this->flatten($photo['data']), $name), 'source' => $photo['source']];
     }
 
-    /** The admin's own photo in the shop layout. */
+    /** The admin's own photo, retouched, in the shop layout. */
     public function fromPhoto(array $photo, string $name): string
     {
-        return $this->brand($photo['data'], $name);
+        return $this->brand($this->retouch($this->flatten($photo['data'])), $name);
     }
 
     /**
-     * Fit the picture on a white square, stamp the logo, save as JPEG.
-     * Photos on white are trimmed and enlarged to fill the square, with the line art
-     * behind the product; other photos are fitted inside, with the line art around them.
+     * Fit the product at 70% of a white square over the logo watermark, stamp the logo, save as JPEG.
+     * Photos on white are trimmed to the product and the watermark shows behind it;
+     * other photos are fitted whole, with the watermark around them.
      */
-    private function brand(string $bytes, string $name): string
+    private function brand(GdImage $src, string $name): string
     {
-        $src = $this->flatten($bytes);
         $onWhite = ManufacturerPhotoFinder::whiteBorder($src) >= self::WHITE_BACKGROUND;
 
         $canvas = imagecreatetruecolor(self::SIZE, self::SIZE);
         imagefill($canvas, 0, 0, imagecolorallocate($canvas, 255, 255, 255));
         if (! $onWhite) {
-            $this->drawLineArt($canvas); // shows in the margin around the photo
+            $this->drawWatermark($canvas); // shows in the margin around the photo
         }
 
         [$w, $h] = [imagesx($src), imagesy($src)];
         [$sx, $sy, $sw, $sh] = $onWhite ? ($this->contentBox($src) ?? [0, 0, $w, $h]) : [0, 0, $w, $h];
-        $box = $onWhite ? self::SIZE * self::FILL : self::SIZE * 0.86;
+        $box = self::SIZE * self::FILL;
         $scale = min($box / $sw, $box / $sh, 4);
         [$dw, $dh] = [(int) round($sw * $scale), (int) round($sh * $scale)];
         imagecopyresampled($canvas, $src, (int) ((self::SIZE - $dw) / 2), (int) ((self::SIZE - $dh) / 2), $sx, $sy, $dw, $dh, $sw, $sh);
         imagedestroy($src);
 
         if ($onWhite) {
-            $this->addLineArtBehind($canvas);
+            $this->addWatermarkBehind($canvas);
         }
         $this->stampLogo($canvas);
 
@@ -97,47 +99,160 @@ class ProductImageMaker
     }
 
     /**
-     * Faint bands of parallel stripes that turn at right angles, modelled on
-     * the logo's mark, coming in from three corners in a random arrangement.
-     * The bottom-right corner is left for the logo. Call on a plain white canvas.
+     * Clean up a shop photo in code (no AI, so the product itself is never changed):
+     * correct the colour using the light backdrop as the white reference, stretch the
+     * levels so it is not dull, make the light backdrop around the product pure white,
+     * and sharpen a little.
      */
-    private function drawLineArt(GdImage $canvas): void
+    private function retouch(GdImage $img): GdImage
     {
-        $colours = [imagecolorallocate($canvas, 218, 30, 40), imagecolorallocate($canvas, 30, 30, 30)];
-        $thick = 5;
-        imagesetthickness($canvas, $thick);
+        // Large phone photos: work at most 1600 px, more than the 1200 px result needs.
+        [$w, $h] = [imagesx($img), imagesy($img)];
+        if (max($w, $h) > 1600) {
+            $k = 1600 / max($w, $h);
+            $small = imagecreatetruecolor((int) round($w * $k), (int) round($h * $k));
+            imagecopyresampled($small, $img, 0, 0, 0, 0, imagesx($small), imagesy($small), $w, $h);
+            imagedestroy($img);
+            $img = $small;
+            [$w, $h] = [imagesx($img), imagesy($img)];
+        }
 
-        foreach ([[0, 0], [self::SIZE, 0], [0, self::SIZE]] as $i => [$cx, $cy]) {
-            $dx = $cx ? -1 : 1;
-            $dy = $cy ? -1 : 1;
-            $a = random_int(200, 420);
-            $b = random_int(200, 420);
+        // White reference: the brightest third of the border (the backdrop the product stands on).
+        $border = [];
+        for ($i = 0; $i < 80; $i++) {
+            $x = (int) ($i * ($w - 1) / 79);
+            $y = (int) ($i * ($h - 1) / 79);
+            foreach ([[$x, 0], [$x, $h - 1], [0, $y], [$w - 1, $y]] as [$px, $py]) {
+                $c = imagecolorat($img, $px, $py);
+                $border[] = [$c >> 16 & 255, $c >> 8 & 255, $c & 255];
+            }
+        }
+        usort($border, fn ($a, $b) => array_sum($b) <=> array_sum($a));
+        $top = array_slice($border, 0, max(1, intdiv(count($border), 3)));
+        $ref = [];
+        foreach ([0, 1, 2] as $ch) {
+            $ref[$ch] = array_sum(array_column($top, $ch)) / count($top);
+        }
+        // A dark or strongly coloured backdrop is no white reference: then only the levels are stretched.
+        $useRef = min($ref) >= 120 && max($ref) - min($ref) <= 60;
 
-            // Corner-local path (u = in from the side edge, v = in from the top/bottom edge).
-            $path = match (random_int(0, 2)) {
-                0 => [[$a, 0], [$a, $b], [0, $b]],                                          // L round the corner
-                1 => [[$a, 0], [$a, $b], [(int) ($a * 0.4), $b], [(int) ($a * 0.4), (int) ($b * 0.45)]], // hook
-                2 => [[0, $b], [$a, $b], [$a, (int) ($b * 0.45)], [(int) ($a * 0.4), (int) ($b * 0.45)]], // hook, other way
-            };
-
-            $colour = $colours[($i + random_int(0, 1)) % 2];
-            $lines = random_int(4, 6);
-            $gap = $thick * 2 + 1;
-            for ($k = 0; $k < $lines; $k++) {
-                $points = $this->offsetPath($path, $k * $gap);
-                for ($p = 1; $p < count($points); $p++) {
-                    [$u1, $v1] = $points[$p - 1];
-                    [$u2, $v2] = $points[$p];
-                    imageline($canvas, $cx + $dx * $u1, $cy + $dy * $v1, $cx + $dx * $u2, $cy + $dy * $v2, $colour);
-                }
+        // Dark point: the darkest 1% of the picture becomes black (capped, so dark products stay natural).
+        $hist = array_fill(0, 256, 0);
+        $n = 0;
+        for ($y = 0; $y < $h; $y += 3) {
+            for ($x = 0; $x < $w; $x += 3) {
+                $c = imagecolorat($img, $x, $y);
+                $hist[intdiv(($c >> 16 & 255) * 3 + ($c >> 8 & 255) * 6 + ($c & 255), 10)]++;
+                $n++;
+            }
+        }
+        [$low, $sum] = [0, 0];
+        for ($v = 0; $v < 256; $v++) {
+            $sum += $hist[$v];
+            if ($sum >= $n * 0.01) {
+                $low = min($v, 40);
+                break;
             }
         }
 
-        imagesetthickness($canvas, 1);
+        // One lookup table per channel: backdrop colour → white, dark point → black.
+        $lut = [];
+        foreach ([0, 1, 2] as $ch) {
+            $white = $useRef ? max($ref[$ch], $low + 60) : 255;
+            for ($v = 0; $v < 256; $v++) {
+                $lut[$ch][$v] = (int) max(0, min(255, round(($v - $low) * 255 / ($white - $low))));
+            }
+        }
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                $c = imagecolorat($img, $x, $y);
+                imagesetpixel($img, $x, $y, ($lut[0][$c >> 16 & 255] << 16) | ($lut[1][$c >> 8 & 255] << 8) | $lut[2][$c & 255]);
+            }
+        }
 
-        // Wash it out to a light watermark: a mostly-opaque white layer on top.
-        imagealphablending($canvas, true);
-        imagefilledrectangle($canvas, 0, 0, self::SIZE, self::SIZE, imagecolorallocatealpha($canvas, 255, 255, 255, 28));
+        if ($useRef) {
+            $this->whitenBackground($img);
+        }
+
+        // Gentle sharpen.
+        imageconvolution($img, [[0, -1, 0], [-1, 12, -1], [0, -1, 0]], 8, 0);
+
+        return $img;
+    }
+
+    /**
+     * Turn the light, almost-white area connected to the picture's edges pure white,
+     * so a photo on a white sheet or table looks like a studio shot. Light parts inside
+     * the product are left alone (they are not connected to the edge).
+     */
+    private function whitenBackground(GdImage $img): void
+    {
+        [$w, $h] = [imagesx($img), imagesy($img)];
+        $seen = array_fill(0, $w * $h, false);
+        $stack = [];
+        for ($x = 0; $x < $w; $x++) {
+            array_push($stack, $x, ($h - 1) * $w + $x);
+        }
+        for ($y = 0; $y < $h; $y++) {
+            array_push($stack, $y * $w, $y * $w + $w - 1);
+        }
+
+        $white = imagecolorallocate($img, 255, 255, 255);
+        while ($stack) {
+            $i = array_pop($stack);
+            if ($seen[$i]) {
+                continue;
+            }
+            $seen[$i] = true;
+            [$x, $y] = [$i % $w, intdiv($i, $w)];
+            $c = imagecolorat($img, $x, $y);
+            [$r, $g, $b] = [$c >> 16 & 255, $c >> 8 & 255, $c & 255];
+            if (min($r, $g, $b) < 215 || max($r, $g, $b) - min($r, $g, $b) > 28) {
+                continue;
+            }
+            imagesetpixel($img, $x, $y, $white);
+            if ($x > 0) $stack[] = $i - 1;
+            if ($x < $w - 1) $stack[] = $i + 1;
+            if ($y > 0) $stack[] = $i - $w;
+            if ($y < $h - 1) $stack[] = $i + $w;
+        }
+    }
+
+    /** Faint SpeedTech logos repeated across the square in staggered rows. Draws on a plain white canvas. */
+    private function drawWatermark(GdImage $canvas): void
+    {
+        $logo = $this->logo();
+        if (! $logo) {
+            return;
+        }
+
+        // The logo washed out to a pale tint on white, once, then tiled.
+        $lw = 300;
+        $lh = (int) round(imagesy($logo) * $lw / imagesx($logo));
+        $tile = imagecreatetruecolor($lw, $lh);
+        imagefill($tile, 0, 0, imagecolorallocate($tile, 255, 255, 255));
+        imagealphablending($tile, true);
+        imagecopyresampled($tile, $logo, 0, 0, 0, 0, $lw, $lh, imagesx($logo), imagesy($logo));
+        imagedestroy($logo);
+        imagefilledrectangle($tile, 0, 0, $lw, $lh, imagecolorallocatealpha($tile, 255, 255, 255, (int) round(127 * self::WATERMARK_STRENGTH)));
+
+        // Staggered rows of whole logos (3, then 2, …), none cut off at the edge.
+        $rows = 6;
+        $gapY = intdiv(self::SIZE - $rows * $lh, $rows);
+        for ($row = 0; $row < $rows; $row++) {
+            $y = intdiv($gapY, 2) + $row * ($lh + $gapY);
+            $count = $row % 2 ? 2 : 3;
+            $gapX = intdiv(self::SIZE - $count * $lw, $count);
+            for ($i = 0; $i < $count; $i++) {
+                $x = intdiv($gapX, 2) + $i * ($lw + $gapX);
+                // Leave the corner with the real logo clear.
+                if ($x < self::SIZE * 0.4 && $y + $lh > self::SIZE - 160) {
+                    continue;
+                }
+                imagecopy($canvas, $tile, $x, $y, 0, 0, $lw, $lh);
+            }
+        }
+        imagedestroy($tile);
     }
 
     /**
@@ -185,14 +300,14 @@ class ProductImageMaker
     }
 
     /**
-     * Put the line art on a photo's white background only: the white area is found by
+     * Put the watermark on a photo's white background only: the white area is found by
      * flood-filling from the edges, so the product (even a white box inside it) is never drawn over.
      */
-    private function addLineArtBehind(GdImage $canvas): void
+    private function addWatermarkBehind(GdImage $canvas): void
     {
         $layer = imagecreatetruecolor(self::SIZE, self::SIZE);
         imagefill($layer, 0, 0, imagecolorallocate($layer, 255, 255, 255));
-        $this->drawLineArt($layer);
+        $this->drawWatermark($layer);
 
         $cell = 4;
         $n = intdiv(self::SIZE, $cell);
@@ -206,7 +321,7 @@ class ProductImageMaker
                     continue;
                 }
                 $c = imagecolorat($canvas, $x, $y);
-                // "Darken" blend: on white it shows the line art as drawn.
+                // "Darken" blend: on white it shows the watermark as drawn.
                 imagesetpixel($canvas, $x, $y,
                     (min($c >> 16 & 255, $l >> 16 & 255) << 16) | (min($c >> 8 & 255, $l >> 8 & 255) << 8) | min($c & 255, $l & 255));
             }
@@ -216,7 +331,7 @@ class ProductImageMaker
 
     /**
      * Near-white cells connected to the picture's edges, on an $n×$n grid, shrunk by one cell
-     * so the line art keeps clear of the product's outline.
+     * so the watermark keeps clear of the product's outline.
      *
      * @return list<bool>
      */
@@ -264,48 +379,29 @@ class ProductImageMaker
         return $mask;
     }
 
-    /**
-     * Shift a right-angled polyline sideways by $o pixels so repeated calls give
-     * evenly spaced, neatly nested parallel stripes.
-     *
-     * @param  list<array{int, int}>  $path
-     * @return list<array{int, int}>
-     */
-    private function offsetPath(array $path, int $o): array
+    private function logo(): GdImage|false
     {
-        $normals = [];
-        for ($i = 1; $i < count($path); $i++) {
-            $du = $path[$i][0] <=> $path[$i - 1][0];
-            $dv = $path[$i][1] <=> $path[$i - 1][1];
-            $normals[] = [-$dv, $du];
-        }
+        $path = public_path('assets/logo.png');
 
-        $out = [];
-        foreach ($path as $i => [$u, $v]) {
-            $prev = $normals[$i - 1] ?? [0, 0];
-            $next = $normals[$i] ?? [0, 0];
-            $out[] = [$u + $o * ($prev[0] + $next[0]), $v + $o * ($prev[1] + $next[1])];
-        }
-
-        return $out;
+        return is_file($path) ? @imagecreatefrompng($path) : false;
     }
 
+    /** The website logo (transparent PNG) in the bottom-left corner, on a soft white patch so it reads over the watermark. */
     private function stampLogo(GdImage $canvas): void
     {
-        $logoPath = public_path('assets/logo.png');
-        $logo = is_file($logoPath) ? @imagecreatefrompng($logoPath) : false;
+        $logo = $this->logo();
         if (! $logo) {
             return;
         }
 
-        $lw = (int) (self::SIZE * 0.24);
+        $lw = (int) (self::SIZE * 0.26);
         $lh = (int) round(imagesy($logo) * $lw / imagesx($logo));
         $margin = 36;
-        $x = self::SIZE - $lw - $margin;
+        $x = $margin;
         $y = self::SIZE - $lh - $margin;
 
-        // Transparent PNG straight onto the picture (no plate behind it).
         imagealphablending($canvas, true);
+        imagefilledrectangle($canvas, $x - 14, $y - 12, $x + $lw + 14, $y + $lh + 12, imagecolorallocatealpha($canvas, 255, 255, 255, 20));
         imagecopyresampled($canvas, $logo, $x, $y, 0, 0, $lw, $lh, imagesx($logo), imagesy($logo));
         imagedestroy($logo);
     }

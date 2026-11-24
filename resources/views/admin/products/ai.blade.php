@@ -36,8 +36,8 @@
           <div class="form-grid" style="grid-template-columns:1fr">
             <div class="field">Where should the image come from?
               <div style="display:grid;gap:8px;margin-top:8px">
-                <label class="check"><input type="radio" name="image_mode" value="web" @checked(old('image_mode', 'web') === 'web')> Find the manufacturer's original photo online <small class="help" style="margin:0">(real photo, so ports and pins are exact — put in the SpeedTech layout with the logo)</small></label>
-                <label class="check"><input type="radio" name="image_mode" value="photo" @checked(old('image_mode') === 'photo')> Use my photo, in the SpeedTech layout with the logo</label>
+                <label class="check"><input type="radio" name="image_mode" value="web" @checked(old('image_mode', 'web') === 'web')> Find the manufacturer's original photo on its official website <small class="help" style="margin:0">(real photo, so ports and pins are exact — never from other shops)</small></label>
+                <label class="check"><input type="radio" name="image_mode" value="photo" @checked(old('image_mode') === 'photo')> Use my photo, retouched (colour, brightness, white background)</label>
                 <label class="check"><input type="radio" name="image_mode" value="none" @checked(old('image_mode') === 'none')> No image for now</label>
               </div>
             </div>
@@ -46,7 +46,7 @@
               <input type="url" name="image_url" value="{{ old('image_url') }}" maxlength="2000" placeholder="https://www.manufacturer.com/product-page">
             </label>
 
-            <label class="field">Photo of the product <small>(optional) — the AI reads it to write the text (part numbers, connectors). Used as the image only with “Use my photo”, or if no manufacturer photo is found.</small>
+            <label class="field">Photo of the product <small>(optional) — the AI reads it to write the text (part numbers, connectors). Used as the image (retouched) only with “Use my photo”, or if the official website has no photo.</small>
               <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" id="photoInput">
             </label>
             <img class="image-preview" id="photoPreview" alt="" hidden>
@@ -60,7 +60,7 @@
           <ol class="help" style="padding-left:18px;margin:0">
             <li>The AI writes the name, summary, SEO description, meta title and meta description.</li>
             <li>It picks the right category, part type, brand and compatible laptop models, and <b>creates any that are missing</b>.</li>
-            <li>It finds the manufacturer's original product photo online and puts it in the SpeedTech layout with the logo. No image is drawn by AI, so connectors and pins are always the real ones.</li>
+            <li>It takes the original product photo from the manufacturer's official website (or retouches your photo) and puts it in the SpeedTech layout: product at 70% on white, logo watermark behind it and the logo bottom-left. No image is drawn by AI, so connectors and pins are always the real ones.</li>
             <li>Everything is saved as a <b>hidden draft</b>. You review it, add price and stock, then tick “Visible in the store” to publish.</li>
           </ol>
         </section>
