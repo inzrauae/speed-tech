@@ -148,8 +148,9 @@ class AiProductTest extends TestCase
      * Fake Gemini (writer, Google Search, photo check) and the manufacturer's website.
      *
      * @param  list<string>  $found  URLs the search answers with
+     * @param  list<array{int, int}>|null  $outline  [y, x] polygon the AI traces round a staff photo's product
      */
-    private function fakeGemini(array $draft, array $found = ['https://www.dell.com/kb-3520'], int $best = 0): void
+    private function fakeGemini(array $draft, array $found = ['https://www.dell.com/kb-3520'], int $best = 0, ?array $outline = null): void
     {
         // A product photo on a white background, like manufacturers publish.
         $img = imagecreatetruecolor(800, 600);
@@ -165,6 +166,7 @@ class AiProductTest extends TestCase
             '*/text-model:generateContent' => fn ($request) => match (true) {
                 isset($request->data()['tools']) => $answer(implode("\n", $found)),
                 str_contains(json_encode($request->data()), 'best shop photo') => $answer(json_encode(['best' => $best, 'reason' => 'wrong connector'])),
+                str_contains(json_encode($request->data()), 'Trace the outline') => $answer(json_encode($outline ? ['points' => $outline] : ['nothing' => true])),
                 default => $answer(json_encode($draft)),
             },
             '*/image-model:generateContent' => Http::response(['error' => ['message' => 'must not be called']], 500),
@@ -360,17 +362,17 @@ class AiProductTest extends TestCase
         $this->post(route('admin.ai.image', $product))->assertSessionHas('status', fn ($s) => str_contains($s, 'www.dell.com'));
     }
 
-    public function test_image_layout_product_at_70_percent_with_logo_bottom_left(): void
+    public function test_image_layout_product_at_80_percent_with_logo_bottom_left(): void
     {
         $this->fakeGemini($this->draft(['compatible' => []]));
         $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'web']);
         $img = imagecreatefromjpeg(public_path(Product::sole()->image));
 
-        // The 400×200 dark product fills 70% of the width: 840 px, centred.
+        // The 400×200 dark product (plus a 2% white margin) fills 80% of the width: about 915 + 45 px, centred.
         $dark = fn ($x, $y) => (imagecolorat($img, $x, $y) & 0xFF) < 80;
         $this->assertTrue($dark(600, 600));
-        $this->assertTrue($dark(215, 600) && $dark(985, 600));
-        $this->assertFalse($dark(170, 600) || $dark(1030, 600));
+        $this->assertTrue($dark(160, 600) && $dark(1040, 600));
+        $this->assertFalse($dark(110, 600) || $dark(1090, 600));
 
         // The logo (red) is in the bottom-left corner, not the bottom-right.
         $red = function ($x0, $x1) use ($img) {
@@ -389,7 +391,7 @@ class AiProductTest extends TestCase
         $this->assertFalse($red(840, 1170));
     }
 
-    public function test_own_photo_is_retouched_onto_a_white_background(): void
+    public function test_own_photo_background_is_removed_and_the_product_put_on_the_template(): void
     {
         $img = imagecreatetruecolor(800, 600);
         imagefill($img, 0, 0, imagecolorallocate($img, 205, 195, 175)); // dull, warm backdrop
@@ -402,9 +404,41 @@ class AiProductTest extends TestCase
         $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'photo', 'photo' => $photo]);
         $out = imagecreatefromjpeg(public_path(Product::sole()->image));
 
-        // Backdrop next to the product is now white and neutral.
-        $c = imagecolorsforindex($out, imagecolorat($out, 600, 170));
-        $this->assertGreaterThanOrEqual(245, min($c['red'], $c['green'], $c['blue']));
+        // The warm backdrop is gone, right up to the product (no AI outline here: the code cut-out).
+        foreach ([[600, 170], [600, 265], [80, 600]] as [$x, $y]) {
+            $c = imagecolorsforindex($out, imagecolorat($out, $x, $y));
+            $this->assertGreaterThanOrEqual(240, min($c['red'], $c['green'], $c['blue']), "at {$x},{$y}");
+        }
+        // The 300×200 product is cut out and fills 80% of the width.
+        $dark = fn ($x, $y) => (imagecolorat($out, $x, $y) & 0xFF) < 80;
+        $this->assertTrue($dark(140, 600) && $dark(1060, 600));
+        $this->assertFalse($dark(100, 600) || $dark(1100, 600));
+    }
+
+    public function test_the_ai_outline_keeps_clutter_out_of_the_cut_out(): void
+    {
+        $img = imagecreatetruecolor(800, 600);
+        imagefill($img, 0, 0, imagecolorallocate($img, 200, 190, 170));
+        imagefilledrectangle($img, 250, 200, 550, 400, imagecolorallocate($img, 30, 30, 30));   // the product
+        imagefilledrectangle($img, 640, 470, 770, 570, imagecolorallocate($img, 40, 60, 170));  // a blue box lying next to it
+        ob_start();
+        imagejpeg($img, null, 95);
+        $photo = UploadedFile::fake()->createWithContent('kb.jpg', ob_get_clean());
+
+        $this->fakeGemini($this->draft(['compatible' => []]), outline: [[330, 310], [330, 690], [670, 690], [670, 310]]);
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'photo', 'photo' => $photo]);
+        $out = imagecreatefromjpeg(public_path(Product::sole()->image));
+
+        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'Trace the outline'));
+        // Only the product is placed (at 80%); the blue box is gone.
+        $dark = fn ($x, $y) => (imagecolorat($out, $x, $y) & 0xFF) < 80;
+        $this->assertTrue($dark(140, 600) && $dark(1060, 600));
+        for ($y = 0; $y < 1200; $y += 6) {
+            for ($x = 0; $x < 1200; $x += 6) {
+                $c = imagecolorat($out, $x, $y);
+                $this->assertFalse(($c & 255) > 120 && ($c >> 16 & 255) < 90, "blue at {$x},{$y}");
+            }
+        }
     }
 
     public function test_links_to_private_addresses_are_never_fetched(): void
