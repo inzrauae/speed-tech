@@ -12,8 +12,7 @@ use Illuminate\Support\Str;
 
 /**
  * The "AI product writer" agent: from a product title (and optionally a photo)
- * it writes SEO copy, picks or creates the category / brand / laptop models,
- * and gives the search words ProductImageMaker uses to find the manufacturer photo.
+ * it writes SEO copy and picks or creates the category / brand / laptop models.
  */
 class ProductWriter
 {
@@ -107,7 +106,6 @@ class ProductWriter
         - category: for accessories, a shop category; for spare parts, a spare part type. Reuse an existing name EXACTLY when one fits. Only suggest a new, short, general name (e.g. "Webcams", "Cooling Fan") when none fits.
         - brand: the product's manufacturer brand, or empty.
         - compatible: spare parts only (empty array for accessories). Laptop brand, model and years/generation the part fits, only when the title or photo makes it clear. Reuse existing brand names exactly. Max 6 entries.
-        - image_search: the exact words to find the manufacturer's original photo of THIS product with a web search: brand + exact model name + part number / model code (e.g. "Samsung 870 EVO 500GB MZ-77E500", "Dell 0KN4DH keyboard Inspiron 15 3520"). Use part numbers from the title, notes or photo; never invent one. No extra words.
         - review_notes: one or two short sentences telling the shop staff what to double-check (e.g. a guessed spec). Empty if nothing.
         Do not invent technical specifications you are not confident about; leave them out instead.
         TXT;
@@ -136,9 +134,9 @@ class ProductWriter
                     'properties' => ['brand' => $str, 'model' => $str, 'years' => $str],
                     'required' => ['brand', 'model', 'years'],
                 ]],
-                'image_search' => $str, 'review_notes' => $str,
+                'review_notes' => $str,
             ],
-            'required' => ['type', 'name', 'summary', 'description', 'meta_title', 'meta_description', 'focus_keyword', 'image_alt', 'faqs', 'specification', 'category', 'image_search'],
+            'required' => ['type', 'name', 'summary', 'description', 'meta_title', 'meta_description', 'focus_keyword', 'image_alt', 'faqs', 'specification', 'category'],
         ];
     }
 
@@ -185,7 +183,6 @@ class ProductWriter
             'category' => $s('category', 100),
             'brand' => $s('brand', 60),
             'compatible' => $compatible,
-            'image_search' => $s('image_search', 200),
             'review_notes' => $s('review_notes', 400),
         ];
     }

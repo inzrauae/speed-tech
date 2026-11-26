@@ -53,28 +53,6 @@ class GeminiClient
     }
 
     /**
-     * Ask the text model with Google Search turned on. Returns its answer and the
-     * web pages Google used (grounding sources; these may be Google redirect links).
-     *
-     * @return array{text: string, sources: list<string>}
-     */
-    public function search(string $prompt): array
-    {
-        $response = $this->call(config('services.gemini.text_model'), [
-            'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
-            'tools' => [['google_search' => (object) []]],
-            'generationConfig' => ['temperature' => 0.2, 'thinkingConfig' => ['thinkingLevel' => 'low']],
-        ]);
-
-        return [
-            'text' => collect($response->json('candidates.0.content.parts', []))
-                ->reject(fn ($p) => ! empty($p['thought']))->pluck('text')->filter()->implode(''),
-            'sources' => collect($response->json('candidates.0.groundingMetadata.groundingChunks', []))
-                ->pluck('web.uri')->filter()->values()->all(),
-        ];
-    }
-
-    /**
      * Generate one image. Returns ['mime' => ..., 'data' => raw bytes].
      *
      * @param  array<int, array{mime: string, data: string}>  $images  reference photos

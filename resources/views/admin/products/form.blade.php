@@ -18,7 +18,6 @@
           @foreach ($aiReport['created'] as $item)<li>Suggested new {{ $item }} — <a class="link" href="{{ route('admin.approvals.index') }}">waiting for your approval</a>.</li>@endforeach
           @if ($aiReport['brand'])<li>Brand detected: {{ $aiReport['brand'] }}.</li>@endif
           @if ($aiReport['notes'])<li>AI note: {{ $aiReport['notes'] }}</li>@endif
-          @foreach ($aiReport['warnings'] as $warning)<li class="warn">{{ $warning }}</li>@endforeach
         </ul>
       @endif
     </div>
@@ -168,13 +167,6 @@
           <label class="field">Upload JPG, PNG or WebP (max 4 MB)<input type="file" name="image" accept="image/jpeg,image/png,image/webp" id="imageInput"></label>
           @if ($product->image)<label class="check" style="margin-top:10px"><input type="checkbox" name="remove_image" value="1"> Remove current image</label>@endif
           @if ($product->exists)
-            <details class="ai-image" @if ($product->ai_draft) open @endif>
-              <summary><svg class="icon"><use href="#icon-bolt"/></svg>Manufacturer photo with logo</summary>
-              <p class="help" style="margin:8px 0 0">Takes the original photo of this exact product from the manufacturer's official website and puts it in the SpeedTech layout. Nothing is drawn by AI.</p>
-              <label class="field">Page or photo link <small>(optional) — if the search picks the wrong photo, paste the right one</small><input type="url" name="image_url" form="aiImageForm" maxlength="2000" placeholder="https://www.manufacturer.com/product-page"></label>
-              <label class="field">Or use my own photo <small>(optional — background removed and retouched for you)</small><input type="file" name="photo" form="aiImageForm" accept="image/jpeg,image/png,image/webp"></label>
-              <button class="btn sm" type="submit" form="aiImageForm" style="margin-top:10px">Get photo</button>
-            </details>
             <a class="btn sm fb-ad-btn" href="{{ route('admin.fb-ad.create', $product) }}"><svg class="icon"><use href="#icon-tag"/></svg>Create FB ad post</a>
           @endif
         </section>
@@ -190,7 +182,6 @@
   @if ($product->exists)
     {{-- Targets of the AI buttons above (inputs use form="…" because forms cannot nest). --}}
     <form method="post" action="{{ route('admin.ai.text', $product) }}" id="aiTextForm" class="js-ai" data-confirm="Replace the summary, description and SEO text with a new AI version? Unsaved changes on this page will be lost.">@csrf</form>
-    <form method="post" action="{{ route('admin.ai.image', $product) }}" id="aiImageForm" class="js-ai" enctype="multipart/form-data" data-confirm="Get a new product photo? It replaces the current image. Unsaved changes on this page will be lost.">@csrf</form>
 
     <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm="Delete “{{ $product->name }}” permanently? Past orders keep their copy of the name and price." style="margin-top:24px">
       @csrf @method('DELETE')

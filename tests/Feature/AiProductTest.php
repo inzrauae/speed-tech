@@ -8,10 +8,8 @@ use App\Models\LaptopModel;
 use App\Models\PartCategory;
 use App\Models\Product;
 use App\Models\User;
-use App\Services\Ai\ManufacturerPhotoFinder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -22,21 +20,10 @@ class AiProductTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['services.gemini.key' => 'test-key', 'services.gemini.text_model' => 'text-model', 'services.gemini.image_model' => 'image-model']);
-        // No real DNS in tests: every host is "public" unless it is written as an IP.
-        ManufacturerPhotoFinder::$resolveUsing = fn (string $host) => filter_var($host, FILTER_VALIDATE_IP) ? [$host] : ['93.184.216.34'];
+        config(['services.gemini.key' => 'test-key', 'services.gemini.text_model' => 'text-model']);
         $admin = User::factory()->create();
         $admin->forceFill(['is_admin' => true])->save();
         $this->actingAs($admin);
-    }
-
-    protected function tearDown(): void
-    {
-        ManufacturerPhotoFinder::$resolveUsing = null;
-        foreach (Product::whereNotNull('image')->pluck('image') as $path) {
-            File::delete(public_path($path));
-        }
-        parent::tearDown();
     }
 
     private function draft(array $overrides = []): array
@@ -53,7 +40,6 @@ class AiProductTest extends TestCase
             'category' => 'Keyboard',
             'brand' => 'Dell',
             'compatible' => [['brand' => 'Dell', 'model' => 'Inspiron 15 3520', 'years' => '2022-2023']],
-            'image_search' => 'Dell Inspiron 15 3520 keyboard 0KN4DH',
             'review_notes' => 'Check the ribbon cable.',
             'focus_keyword' => 'Dell Inspiron 15 3520 keyboard',
             'image_alt' => 'Black backlit US keyboard for the Dell Inspiron 15 3520 laptop',
@@ -64,7 +50,7 @@ class AiProductTest extends TestCase
     public function test_new_taxonomy_from_the_ai_waits_for_approval_and_is_hidden(): void
     {
         $this->fakeGemini($this->draft());
-        $this->post('/admin/products/ai-writer', ['title' => 'dell 3520 keyboard', 'image_mode' => 'none']);
+        $this->post('/admin/products/ai-writer', ['title' => 'dell 3520 keyboard']);
 
         $brand = Brand::where('name', 'Dell')->sole();
         $model = LaptopModel::where('name', 'Inspiron 15 3520')->sole();
@@ -96,7 +82,7 @@ class AiProductTest extends TestCase
     {
         $existing = PartCategory::create(['name' => 'Keyboards', 'is_active' => true]);
         $this->fakeGemini($this->draft(['category' => 'Laptop Keyboard', 'compatible' => [['brand' => 'Dull', 'model' => 'X1', 'years' => '']]]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard']);
         $product = Product::sole();
         $suggested = PartCategory::where('name', 'Laptop Keyboard')->sole();
 
@@ -115,7 +101,7 @@ class AiProductTest extends TestCase
     public function test_draft_gets_seo_fields_and_the_page_outputs_structured_data(): void
     {
         $this->fakeGemini($this->draft(['description' => "Intro text.\n\n## Key features\n\n• Backlit\n• US layout", 'meta_title' => 'Dell 3520 Keyboard | SpeedTech']));
-        $this->post('/admin/products/ai-writer', ['title' => 'dell 3520 keyboard', 'image_mode' => 'none']);
+        $this->post('/admin/products/ai-writer', ['title' => 'dell 3520 keyboard']);
 
         $product = Product::sole();
         $this->assertSame('Dell', $product->brand);
@@ -144,35 +130,12 @@ class AiProductTest extends TestCase
         $this->assertCount(4, $graphs['BreadcrumbList']['itemListElement']);
     }
 
-    /**
-     * Fake Gemini (writer, Google Search, photo check) and the manufacturer's website.
-     *
-     * @param  list<string>  $found  URLs the search answers with
-     * @param  list<array{int, int}>|null  $outline  [y, x] polygon the AI traces round a staff photo's product
-     */
-    private function fakeGemini(array $draft, array $found = ['https://www.dell.com/kb-3520'], int $best = 0, ?array $outline = null): void
+    /** Fake the Gemini text model; image generation must never be called. */
+    private function fakeGemini(array $draft): void
     {
-        // A product photo on a white background, like manufacturers publish.
-        $img = imagecreatetruecolor(800, 600);
-        imagefill($img, 0, 0, imagecolorallocate($img, 255, 255, 255));
-        imagefilledrectangle($img, 200, 200, 600, 400, imagecolorallocate($img, 20, 20, 20));
-        ob_start();
-        imagepng($img);
-        $png = ob_get_clean();
-
-        $answer = fn ($text) => Http::response(['candidates' => [['content' => ['parts' => [['text' => $text]]]]]]);
-
         Http::fake([
-            '*/text-model:generateContent' => fn ($request) => match (true) {
-                isset($request->data()['tools']) => $answer(implode("\n", $found)),
-                str_contains(json_encode($request->data()), 'best shop photo') => $answer(json_encode(['best' => $best, 'reason' => 'wrong connector'])),
-                str_contains(json_encode($request->data()), 'Trace the outline') => $answer(json_encode($outline ? ['points' => $outline] : ['nothing' => true])),
-                default => $answer(json_encode($draft)),
-            },
-            '*/image-model:generateContent' => Http::response(['error' => ['message' => 'must not be called']], 500),
-            'www.dell.com/kb-3520' => Http::response('<html><head><meta property="og:image" content="/img/kb-3520.png"></head><body></body></html>', 200, ['Content-Type' => 'text/html; charset=utf-8']),
-            'www.dell.com/img/*' => Http::response($png, 200, ['Content-Type' => 'image/png']),
-            '*' => Http::response('not found', 404),
+            '*/text-model:generateContent' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode($draft)]]]]]]),
+            '*' => Http::response(['error' => ['message' => 'must not be called']], 500),
         ]);
     }
 
@@ -186,7 +149,7 @@ class AiProductTest extends TestCase
         $this->fakeGemini($this->draft());
 
         $response = $this->post('/admin/products/ai-writer', [
-            'title' => 'dell 3520 keyboard backlit', 'image_mode' => 'web',
+            'title' => 'dell 3520 keyboard backlit',
         ]);
 
         $product = Product::sole();
@@ -199,13 +162,12 @@ class AiProductTest extends TestCase
         $model = LaptopModel::where('name', 'Inspiron 15 3520')->sole();
         $this->assertSame([2022, 2023], [$model->generations->first()->year_from, $model->generations->first()->year_to]);
         $this->assertSame($model->generations->pluck('id')->all(), $product->generations->pluck('id')->all());
-        $this->assertStringStartsWith('uploads/products/', $product->image);
-        $this->assertSame([1200, 1200], array_slice(getimagesize(public_path($product->image)), 0, 2));
+        $this->assertSame('Black backlit US keyboard for the Dell Inspiron 15 3520 laptop', $product->image_alt);
+        $this->assertNotNull($product->meta_description);
 
-        // The manufacturer's photo is searched for with the writer's exact words; nothing is drawn.
-        Http::assertSent(fn ($request) => isset($request->data()['tools']) && str_contains(json_encode($request->data()), '0KN4DH'));
-        Http::assertSent(fn ($request) => $request->url() === 'https://www.dell.com/img/kb-3520.png');
-        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'image-model'));
+        // Text only: no image is made, searched for or saved.
+        $this->assertNull($product->image);
+        Http::assertSentCount(1);
     }
 
     public function test_existing_laptop_years_are_reused(): void
@@ -215,7 +177,7 @@ class AiProductTest extends TestCase
 
         foreach (['', '2022-2023'] as $years) {
             $this->fakeGemini($this->draft(['compatible' => [['brand' => 'dell', 'model' => 'Inspiron 15 3520', 'years' => $years]]]));
-            $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+            $this->post('/admin/products/ai-writer', ['title' => 'keyboard']);
             $this->assertSame([$year->id], Product::latest('id')->first()->generations->pluck('id')->all(), "years: '{$years}'");
         }
         $this->assertSame(1, $model->generations()->count());
@@ -227,33 +189,43 @@ class AiProductTest extends TestCase
         $existing = PartCategory::create(['name' => 'Keyboards', 'is_active' => true]);
         $this->fakeGemini($this->draft(['compatible' => []]));
 
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard']);
 
         $this->assertSame(1, PartCategory::count());
         $this->assertSame($existing->id, Product::sole()->part_category_id);
     }
 
-    public function test_own_photo_is_used_when_no_manufacturer_photo_is_found(): void
+    public function test_a_photo_is_only_read_by_the_ai_and_not_saved_as_the_image(): void
     {
         Category::create(['name' => 'Mice', 'is_active' => true]);
-        $this->fakeGemini($this->draft(['type' => 'accessory', 'category' => 'Mice', 'compatible' => []]), found: []);
+        $this->fakeGemini($this->draft(['type' => 'accessory', 'category' => 'Mice', 'compatible' => []]));
 
         $this->post('/admin/products/ai-writer', [
-            'title' => 'wireless mouse', 'image_mode' => 'web',
+            'title' => 'wireless mouse',
             'photo' => UploadedFile::fake()->image('mouse.jpg', 800, 600),
-        ])->assertSessionHas('ai_report', fn ($report) => str_contains($report['warnings'][0], 'No manufacturer photo'));
+        ])->assertSessionHas('ai_report');
 
         $product = Product::sole();
         $this->assertSame(Product::TYPE_ACCESSORY, $product->type);
         $this->assertSame([], $product->generations->all());
-        $this->assertFileExists(public_path($product->image));
+        $this->assertNull($product->image);
+        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'inlineData'));
+    }
+
+    public function test_the_ai_image_route_is_gone(): void
+    {
+        $this->fakeGemini($this->draft(['compatible' => []]));
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard']);
+
+        $this->post('/admin/products/'.Product::sole()->id.'/ai-image')->assertNotFound();
+        $this->get(route('admin.products.edit', Product::sole()))->assertOk()->assertDontSee('Manufacturer photo with logo');
     }
 
     public function test_ai_failure_keeps_the_form_input(): void
     {
         Http::fake(['*' => Http::response(['error' => ['message' => 'bad key']], 403)]);
 
-        $this->from('/admin/products/ai-writer')->post('/admin/products/ai-writer', ['title' => 'mouse', 'image_mode' => 'none'])
+        $this->from('/admin/products/ai-writer')->post('/admin/products/ai-writer', ['title' => 'mouse'])
             ->assertRedirect('/admin/products/ai-writer')
             ->assertSessionHas('error', fn ($e) => str_contains($e, 'API key'))
             ->assertSessionHasInput('title', 'mouse');
@@ -263,7 +235,7 @@ class AiProductTest extends TestCase
     public function test_publishing_a_draft_clears_the_flag_and_uses_seo_fields(): void
     {
         $this->fakeGemini($this->draft(['compatible' => []]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
+        $this->post('/admin/products/ai-writer', ['title' => 'keyboard']);
         $product = Product::sole();
 
         $this->get(route('admin.products.edit', $product))->assertOk()->assertSee('AI draft')->assertSee('Rewrite with AI')->assertSee('(pending approval)');
@@ -282,176 +254,5 @@ class AiProductTest extends TestCase
         $product->refresh();
         $this->assertFalse($product->ai_draft);
         $this->get($product->url())->assertSee('<title>Custom title |', false)->assertSee('content="Custom meta description"', false);
-    }
-
-    public function test_regenerating_an_image_replaces_the_old_upload(): void
-    {
-        $this->fakeGemini($this->draft(['compatible' => []]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'web']);
-        $product = Product::sole();
-        $old = $product->image;
-
-        $this->post(route('admin.ai.image', $product))
-            ->assertSessionHas('status', fn ($s) => str_contains($s, 'www.dell.com'));
-
-        $this->assertNotSame($old, $product->refresh()->image);
-        $this->assertFileDoesNotExist(public_path($old));
-        $this->assertFileExists(public_path($product->image));
-    }
-
-    public function test_photo_search_uses_the_products_connector_and_specification(): void
-    {
-        $this->fakeGemini($this->draft(['compatible' => []]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
-        $product = Product::sole();
-        $product->forceFill(['specification' => '15.6" FHD', 'connector_type' => '30-pin eDP', 'size' => '15.6 inch', 'oem_part_number' => 'NV156FHM-N61'])->save();
-
-        $this->post(route('admin.ai.image', $product))->assertSessionHas('status');
-
-        $text = fn ($request) => json_encode($request->data(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        Http::assertSent(fn ($request) => isset($request->data()['tools'])
-            && str_contains($text($request), 'Connector: 30-pin eDP')
-            && str_contains($text($request), 'Size: 15.6 inch')
-            && str_contains($text($request), 'NV156FHM-N61'));
-        // The photo check gets the specification too, so a look-alike model is rejected.
-        Http::assertSent(fn ($request) => str_contains($text($request), 'best shop photo') && str_contains($text($request), '30-pin eDP'));
-    }
-
-    public function test_a_pasted_link_is_used_without_searching(): void
-    {
-        $this->fakeGemini($this->draft(['compatible' => []]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
-        $product = Product::sole();
-
-        $this->post(route('admin.ai.image', $product), ['image_url' => 'https://www.dell.com/kb-3520'])->assertSessionHas('status');
-
-        $this->assertFileExists(public_path($product->refresh()->image));
-        $this->assertSame([1200, 1200], array_slice(getimagesize(public_path($product->image)), 0, 2));
-        Http::assertNotSent(fn ($request) => isset($request->data()['tools']));
-    }
-
-    public function test_a_photo_the_ai_says_is_the_wrong_model_is_not_used(): void
-    {
-        $this->fakeGemini($this->draft(['compatible' => []]), found: ['https://www.dell.com/kb-3520', 'https://www.dell.com/img/other.png'], best: -1);
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
-        $product = Product::sole();
-
-        $this->post(route('admin.ai.image', $product))->assertSessionHas('error', fn ($e) => str_contains($e, 'none clearly shows this exact product'));
-        $this->assertNull($product->refresh()->image);
-    }
-
-    public function test_searched_photos_from_shops_are_never_used(): void
-    {
-        $this->fakeGemini($this->draft(['compatible' => []]), found: ['https://www.some-laptop-shop.lk/img/kb-3520.png']);
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
-        $product = Product::sole();
-
-        $this->post(route('admin.ai.image', $product))->assertSessionHas('error', fn ($e) => str_contains($e, 'official Dell website'));
-        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'some-laptop-shop.lk'));
-        $this->assertNull($product->refresh()->image);
-    }
-
-    public function test_the_official_domain_named_by_the_search_is_accepted(): void
-    {
-        // The brand alone does not match the host, so only the OFFICIAL line lets this photo in.
-        $this->fakeGemini($this->draft(['compatible' => []]), found: ['OFFICIAL: dell.com', 'https://www.dell.com/img/kb-3520.png']);
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
-        $product = Product::sole();
-        $product->forceFill(['brand' => 'Acme'])->save();
-
-        $this->post(route('admin.ai.image', $product))->assertSessionHas('status', fn ($s) => str_contains($s, 'www.dell.com'));
-    }
-
-    public function test_image_layout_product_at_80_percent_with_logo_bottom_left(): void
-    {
-        $this->fakeGemini($this->draft(['compatible' => []]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'web']);
-        $img = imagecreatefromjpeg(public_path(Product::sole()->image));
-
-        // The 400×200 dark product (plus a 2% white margin) fills 80% of the width: about 915 + 45 px, centred.
-        $dark = fn ($x, $y) => (imagecolorat($img, $x, $y) & 0xFF) < 80;
-        $this->assertTrue($dark(600, 600));
-        $this->assertTrue($dark(160, 600) && $dark(1040, 600));
-        $this->assertFalse($dark(110, 600) || $dark(1090, 600));
-
-        // The logo (red) is in the bottom-left corner, not the bottom-right.
-        $red = function ($x0, $x1) use ($img) {
-            for ($x = $x0; $x < $x1; $x += 2) {
-                for ($y = 1080; $y < 1170; $y += 2) {
-                    $c = imagecolorat($img, $x, $y);
-                    if (($c >> 16 & 255) > 180 && ($c >> 8 & 255) < 90) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        };
-        $this->assertTrue($red(30, 360));
-        $this->assertFalse($red(840, 1170));
-    }
-
-    public function test_own_photo_background_is_removed_and_the_product_put_on_the_template(): void
-    {
-        $img = imagecreatetruecolor(800, 600);
-        imagefill($img, 0, 0, imagecolorallocate($img, 205, 195, 175)); // dull, warm backdrop
-        imagefilledrectangle($img, 250, 200, 550, 400, imagecolorallocate($img, 30, 30, 30));
-        ob_start();
-        imagejpeg($img, null, 95);
-        $photo = UploadedFile::fake()->createWithContent('kb.jpg', ob_get_clean());
-
-        $this->fakeGemini($this->draft(['compatible' => []]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'photo', 'photo' => $photo]);
-        $out = imagecreatefromjpeg(public_path(Product::sole()->image));
-
-        // The warm backdrop is gone, right up to the product (no AI outline here: the code cut-out).
-        foreach ([[600, 170], [600, 265], [80, 600]] as [$x, $y]) {
-            $c = imagecolorsforindex($out, imagecolorat($out, $x, $y));
-            $this->assertGreaterThanOrEqual(240, min($c['red'], $c['green'], $c['blue']), "at {$x},{$y}");
-        }
-        // The 300×200 product is cut out and fills 80% of the width.
-        $dark = fn ($x, $y) => (imagecolorat($out, $x, $y) & 0xFF) < 80;
-        $this->assertTrue($dark(140, 600) && $dark(1060, 600));
-        $this->assertFalse($dark(100, 600) || $dark(1100, 600));
-    }
-
-    public function test_the_ai_outline_keeps_clutter_out_of_the_cut_out(): void
-    {
-        $img = imagecreatetruecolor(800, 600);
-        imagefill($img, 0, 0, imagecolorallocate($img, 200, 190, 170));
-        imagefilledrectangle($img, 250, 200, 550, 400, imagecolorallocate($img, 30, 30, 30));   // the product
-        imagefilledrectangle($img, 640, 470, 770, 570, imagecolorallocate($img, 40, 60, 170));  // a blue box lying next to it
-        ob_start();
-        imagejpeg($img, null, 95);
-        $photo = UploadedFile::fake()->createWithContent('kb.jpg', ob_get_clean());
-
-        $this->fakeGemini($this->draft(['compatible' => []]), outline: [[330, 310], [330, 690], [670, 690], [670, 310]]);
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'photo', 'photo' => $photo]);
-        $out = imagecreatefromjpeg(public_path(Product::sole()->image));
-
-        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'Trace the outline'));
-        // Only the product is placed (at 80%); the blue box is gone.
-        $dark = fn ($x, $y) => (imagecolorat($out, $x, $y) & 0xFF) < 80;
-        $this->assertTrue($dark(140, 600) && $dark(1060, 600));
-        for ($y = 0; $y < 1200; $y += 6) {
-            for ($x = 0; $x < 1200; $x += 6) {
-                $c = imagecolorat($out, $x, $y);
-                $this->assertFalse(($c & 255) > 120 && ($c >> 16 & 255) < 90, "blue at {$x},{$y}");
-            }
-        }
-    }
-
-    public function test_links_to_private_addresses_are_never_fetched(): void
-    {
-        $this->fakeGemini($this->draft(['compatible' => []]));
-        $this->post('/admin/products/ai-writer', ['title' => 'keyboard', 'image_mode' => 'none']);
-        $product = Product::sole();
-
-        foreach (['http://127.0.0.1/admin.png', 'http://192.168.1.1/photo.jpg', 'http://169.254.169.254/latest/meta-data'] as $url) {
-            $this->post(route('admin.ai.image', $product), ['image_url' => $url])->assertSessionHas('error');
-        }
-
-        Http::assertNotSent(fn ($request) => preg_match('#//(127\.|192\.168\.|169\.254\.)#', $request->url()));
-        $this->assertNull($product->refresh()->image);
     }
 }

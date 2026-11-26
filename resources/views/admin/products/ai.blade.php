@@ -32,21 +32,9 @@
         </section>
 
         <section class="card">
-          <h2>2. Image</h2>
+          <h2>2. Photo for the AI <small class="help" style="margin:0">(optional)</small></h2>
           <div class="form-grid" style="grid-template-columns:1fr">
-            <div class="field">Where should the image come from?
-              <div style="display:grid;gap:8px;margin-top:8px">
-                <label class="check"><input type="radio" name="image_mode" value="web" @checked(old('image_mode', 'web') === 'web')> Find the manufacturer's original photo on its official website <small class="help" style="margin:0">(real photo, so ports and pins are exact — never from other shops)</small></label>
-                <label class="check"><input type="radio" name="image_mode" value="photo" @checked(old('image_mode') === 'photo')> Use my photo: background removed, retouched, put on the SpeedTech template</label>
-                <label class="check"><input type="radio" name="image_mode" value="none" @checked(old('image_mode') === 'none')> No image for now</label>
-              </div>
-            </div>
-
-            <label class="field" id="urlField">Manufacturer page or photo link <small>(optional) — paste it if you already know the right page; otherwise it is searched for you</small>
-              <input type="url" name="image_url" value="{{ old('image_url') }}" maxlength="2000" placeholder="https://www.manufacturer.com/product-page">
-            </label>
-
-            <label class="field">Photo of the product <small>(optional) — the AI reads it to write the text (part numbers, connectors). Used as the image (retouched) only with “Use my photo”, or if the official website has no photo.</small>
+            <label class="field">Photo of the product <small>— the AI only reads it to get part numbers, connectors and labels right. It is not saved as the product image; upload that on the product page.</small>
               <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" id="photoInput">
             </label>
             <img class="image-preview" id="photoPreview" alt="" hidden>
@@ -58,17 +46,16 @@
         <section class="card">
           <h2>How it works</h2>
           <ol class="help" style="padding-left:18px;margin:0">
-            <li>The AI writes the name, summary, SEO description, meta title and meta description.</li>
+            <li>The AI writes the name, summary, SEO description, FAQs, meta title, meta description and image alt text.</li>
             <li>It picks the right category, part type, brand and compatible laptop models, and <b>creates any that are missing</b>.</li>
-            <li>It takes the original product photo from the manufacturer's official website (or removes the background from your photo and retouches it) and puts it in the SpeedTech layout: product at 80% on white, logo watermark behind it and the logo bottom-left. No image is drawn by AI, so connectors and pins are always the real ones.</li>
-            <li>Everything is saved as a <b>hidden draft</b>. You review it, add price and stock, then tick “Visible in the store” to publish.</li>
+            <li>Everything is saved as a <b>hidden draft</b>. You review it, upload the product image, add price and stock, then tick “Visible in the store” to publish.</li>
           </ol>
         </section>
 
         <div class="form-actions">
           <button class="btn primary" type="submit" id="aiSubmit" @disabled(! $configured)><svg class="icon"><use href="#icon-bolt"/></svg>Write product draft</button>
         </div>
-        <p class="help" id="aiWait" hidden style="margin-top:10px">Writing and finding the photo… this can take up to a minute. Please keep this page open.</p>
+        <p class="help" id="aiWait" hidden style="margin-top:10px">Writing the product text… this can take up to a minute. Please keep this page open.</p>
 
         @if ($drafts->isNotEmpty())
           <section class="card" style="margin-top:18px">
@@ -90,11 +77,6 @@
 <script>
   (() => {
     const form = document.getElementById('aiForm');
-    const url = document.getElementById('urlField');
-    const sync = () => { url.hidden = form.querySelector('input[name="image_mode"]:checked')?.value !== 'web'; };
-    form.addEventListener('change', e => { if (e.target.name === 'image_mode') sync(); });
-    sync();
-
     document.getElementById('photoInput').addEventListener('change', e => {
       const file = e.target.files[0], img = document.getElementById('photoPreview');
       img.hidden = !file;

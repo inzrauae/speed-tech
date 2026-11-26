@@ -63,7 +63,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // AI product writer (Gemini): drafts are created hidden for review.
         Route::get('products/ai-writer', [Admin\AiProductController::class, 'create'])->name('ai.create');
         Route::post('products/ai-writer', [Admin\AiProductController::class, 'store'])->middleware('throttle:20,1')->name('ai.store');
-        Route::post('products/{product}/ai-image', [Admin\AiProductController::class, 'image'])->middleware('throttle:20,1')->name('ai.image');
         Route::post('products/{product}/ai-text', [Admin\AiProductController::class, 'text'])->middleware('throttle:20,1')->name('ai.text');
         Route::get('products/{product}/fb-ad', [Admin\FbAdController::class, 'create'])->name('fb-ad.create');
         Route::post('products/{product}/fb-ad', [Admin\FbAdController::class, 'generate'])->middleware('throttle:20,1')->name('fb-ad.generate');
